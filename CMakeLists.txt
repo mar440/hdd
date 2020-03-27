@@ -3,19 +3,22 @@ cmake_minimum_required(VERSION 3.0)
 project(mpitest)
 
 
-
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMake/") 
 file(GLOB sources 
   "${PROJECT_SOURCE_DIR}/include/*.hpp",
   "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
 
+if(UNIX)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11 -fPIC -Wunused-but-set-variable")
+endif()
 
 
 #################
 ## MKL ##########
 #################
-
-find_package(MKL REQUIRED)
+##
+find_package(MKL REQUIRED ) 
 find_package(Threads)
 
 add_definitions(-DHAVE_MKL)
@@ -26,7 +29,6 @@ link_directories(${MKL_LIBRARY_DIR})
 
 message("${MKL_INCLUDE_DIR} ----------------------------------")
 
-include_directories(${METIS_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(BLAS_VENDOR Intel10_64lp) 
 find_package(BLAS REQUIRED) 
@@ -66,7 +68,8 @@ include_directories(${METIS_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
 #aux_source_directory(. SRC_LIST)
 add_executable(${PROJECT_NAME} main.cpp ${sources})
 target_link_libraries(${PROJECT_NAME}  PRIVATE MPI::MPI_C  ${VTK_LIBRARIES} Eigen3::Eigen 
-  ${METIS_LIBRARIES} )
+  ${METIS_LIBRARIES} ${BLAS_LIBRARIES})
+
 
 set(CMAKE_CONFIGURATION_TYPES "Debug" CACHE STRING "" FORCE)
 
