@@ -12,14 +12,15 @@ void Element2D::assembly_elasticity(MatrixXd& K, VectorXd &f, vtkCell* cell, dou
 
 	auto CellType = cell->GetCellType(); 
 	vtkPoints *nodesOfElem = cell->GetPoints(); 
-	Matrix3d C;
-	MatrixXd B(3, nP * dim);
+	Matrix3d C = Matrix3d::Zero();
+	MatrixXd B = MatrixXd::Zero(3, nP * dim);
 	K.resize(nP * dim, nP * dim);
 	K.setZero();
 	f.resize(nP * dim);
 	f.setZero();
 	double E = E_mu[0]; 
 	double mu = E_mu[1];
+	double rho = E_mu[2];
 	C(0, 0) = 1.0;
 	C(1, 1) = 1.0;
 	C(0, 1) = mu;
@@ -95,8 +96,8 @@ void Element2D::assembly_elasticity(MatrixXd& K, VectorXd &f, vtkCell* cell, dou
 			}
 			double w_ij_detJ = weights(i) * weights(j) * detJ;
 			K.noalias() += (B.transpose() * (C * B) * w_ij_detJ);
-			//for (int iF = 0; iF < dim; iF++)
-			//	f.segment(iF * nP, nP) += N.transpose() *  (volF(iF) * w_ij_detJ); 
+			for (int iF = 0; iF < dim; iF++)
+			  f.segment(iF * nP, nP) += N.transpose() * rho *  (volF(iF) * w_ij_detJ); 
 		}
 	} 
 } 
@@ -172,7 +173,6 @@ void QUADRATIC_QUAD::GaussPoints(int nGP, VectorXd &r, VectorXd &s,
 		break;
 	}
 	}
-
 }
 
 

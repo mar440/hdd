@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
   Mesh mesh;
 
   {
-    int n_elements = 3;
+    int n_elements = 130;
     int n_subdomains = 1;
     int n_levels = 1;
     mesh.generateMesh(
@@ -34,15 +34,13 @@ int main(int argc, char **argv) {
         n_levels);
   }
 
-
-  if (rank == 0)
-	  mesh.writeMesh(mesh.m_mesh, "test.vtu", true);
-
-
   Data data;
   data.assembly_elasticity(&mesh);
 
   Solver solver(&mesh,&data);
+  
+  if (rank == 0)
+	  mesh.writeMesh(mesh.m_mesh, "test.vtu", true);
 
   MPI_Finalize();
 

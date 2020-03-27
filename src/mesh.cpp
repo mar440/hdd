@@ -9,6 +9,9 @@
 #include <vtkIntArray.h>
 #include <vtkCellData.h>
 #include <vtkXMLUnstructuredGridWriter.h>
+#include <vtkDoubleArray.h>
+#include <vtkPoints.h>
+#include <vtkPointData.h>
 
 using namespace std;
 
@@ -87,13 +90,6 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, int nex2D, int n
 		}
 	}
 
-  int nDirNds = DirichletNodes.size();
-  m_DirichletDofs.resize(2 * nDirNds);
-  for (int inod = 0 ; inod < nDirNds; inod++)
-  {
-    m_DirichletDofs[2 * inod + 0] = 2 * DirichletNodes[inod] + 0;
-    m_DirichletDofs[2 * inod + 1] = 2 * DirichletNodes[inod] + 1;
-  }
 
 	int nnodsBasicGrid = nPoints_ctrl;
 
@@ -113,6 +109,16 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, int nex2D, int n
 			nPoints_ctrl++;
 		}
 	}
+
+
+
+  int nDirNds = DirichletNodes.size();
+  m_DirichletDofs.resize(2 * nDirNds);
+  for (int inod = 0 ; inod < nDirNds; inod++)
+  {
+    m_DirichletDofs[2 * inod + 0] = 2 * DirichletNodes[inod] + 0;
+    m_DirichletDofs[2 * inod + 1] = 2 * DirichletNodes[inod] + 1;
+  }
 
 //	double *xy;
 //	for (int i = 0; i < points->GetNumberOfPoints(); i++)
@@ -197,3 +203,22 @@ void Mesh::writeMesh(vtkUnstructuredGrid *vtkVolumeMesh,
 	writer->SetInputData(vtkVolumeMesh);
 	writer->Write();
 }
+
+void Mesh::addSolution(Eigen::VectorXd& solutionXd)
+{
+ 		vtkSmartPointer<vtkDoubleArray> 
+      solutionE = vtkSmartPointer<vtkDoubleArray>::New();
+		solutionE->SetName("displacement");
+		solutionE->SetNumberOfComponents(3);
+		solutionE->SetNumberOfTuples(m_mesh->GetNumberOfPoints());
+		for (auto i = 0; i < m_mesh->GetNumberOfPoints(); i++) {
+			solutionE->SetTuple3(i, 
+          solutionXd(2 * i + 0), solutionXd(2 * i + 1), 0);
+
+		}
+		m_mesh->GetPointData()->AddArray(solutionE);
+	}
+
+
+
+

@@ -3,6 +3,7 @@
 #include <vtkUnstructuredGrid.h>
 #include <string>
 #include <vector>
+#include "types.hpp"
 
 class vtkUnstructuredGrid;
 
@@ -20,6 +21,7 @@ class Mesh
     vtkUnstructuredGrid* m_mesh;
 
     std::vector<int>& getDirDOFs(){return m_DirichletDofs;}
+    void addSolution(Eigen::VectorXd& solution);
 
   private:
       int m_ne, m_ns, m_nl;
