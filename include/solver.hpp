@@ -12,6 +12,4 @@ class Solver
   private:
     DirectSolver m_directSolver;
 
-
-
 };

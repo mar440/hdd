@@ -3,6 +3,8 @@
 #include <vtkUnstructuredGrid.h>
 #include <string>
 #include <vector>
+#include <map>
+
 #include "types.hpp"
 
 class vtkUnstructuredGrid;
@@ -11,21 +13,33 @@ class Mesh
 {
 
   public:
-    Mesh(){}
+    Mesh();
     ~Mesh();
     void print();
     int generateMesh(int ne, int ns, int nl);
-    vtkUnstructuredGrid* squareMesh(double,double,int,int);
+    vtkUnstructuredGrid* squareMesh(double,double);
     void writeMesh(vtkUnstructuredGrid *vtkVolumeMesh,
         std::string filename, bool asciiOrBinaryVtu);
-    vtkUnstructuredGrid* m_mesh;
 
     std::vector<int>& getDirDOFs(){return m_DirichletDofs;}
     void addSolution(Eigen::VectorXd& solution);
+    std::vector<int> getNeighboursRanks();
+
+
+    void extractSubdomainMesh();
+    int createMappingVectors();
+    vtkUnstructuredGrid* getGlobalMesh(){return m_mesh;}
+    vtkUnstructuredGrid* getSubdomainMesh(){return m_subdomainMesh;}
 
   private:
-      int m_ne, m_ns, m_nl;
+      vtkUnstructuredGrid* m_mesh;
+      vtkUnstructuredGrid* m_subdomainMesh;
+      int m_nex, m_ney;
+      int m_nsx, m_nsy;
+      int m_nlx, m_nly;
       int m_rank;
       std::vector<int> m_DirichletDofs;
+      std::vector<int> m_l2g;
+      std::map<int,int>m_g2l;
 
 };
