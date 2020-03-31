@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(mpitest)
 
+add_compile_definitions(DBG=3)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMake/") 
 file(GLOB sources 
