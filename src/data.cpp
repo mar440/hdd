@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vtkCell.h>
 #include <string>
+#include "../include/stiffnessMatrix.hpp"
 
 
 
@@ -15,11 +16,22 @@ using namespace Eigen;
 Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
 {
   m_pcomm = _pcomm;
-
+  m_p_interfaceOperatorB = nullptr;
+  m_p_interfaceOperatorG = nullptr;
+  MPI_Comm_rank(*m_pcomm, &m_mpiRank);
+  MPI_Comm_size(*m_pcomm, &m_mpiSize);
   m_container.resize(0);
+  m_defectPerSubdomains.resize(0);
+  m_DirichletGlbDofs.resize(0); 
 }
 
-
+Data::~Data()
+{
+  if (m_p_interfaceOperatorB)
+    delete m_p_interfaceOperatorB;
+  if (m_p_interfaceOperatorG)
+    delete m_p_interfaceOperatorG;
+}
 
 void Data::SymbolicAssembling(std::vector<int>& elemntIds)
 {
@@ -38,25 +50,114 @@ void Data::FinalizeSymbolicAssembling()
   m_container.clear();
   m_container.shrink_to_fit();
 
-  //TODO assemble matrix B
+
+  //
   m_domain.SetInterfaces();
+  m_p_interfaceOperatorB = new InterfaceOperatorB(&m_domain);
+  m_p_interfaceOperatorG = new InterfaceOperatorG(&m_domain);
+
+
+#if DBG>2
+  m_dbg_printStats();
+#endif
+
+  m_domain.InitStiffnessMatrix();
+
 
 }
+
+
 
 void Data::NumericAssembling(std::vector<int>& glbIds,
         std::vector<double>& valLocK,
         std::vector<double>& valLocRHS)
 {
-  m_domain.NumericAssemblingStiffnessAndRhs(glbIds, valLocK, valLocRHS);
+  m_domain.GetStiffnessMatrix()->AddElementContribution(glbIds, valLocK);
 }
 
 
 void Data::FinalizeNumericAssembling()
 {
 
-  m_domain.FinalizeStiffnessMatrixAndRhs();
+
+  // DIRICHLET BOUNDARY CONDTION
+  if (m_DirichletGlbDofs.size() == 0)
+    std::runtime_error("Dirichlet BC must be provided \
+        before \"FinalizeNumericAssembling\" is called");
+
+  m_domain.SetDirichletDOFs(m_DirichletGlbDofs);
+
+
+  // ASSEMBLE & FACTORIZE LINEAR OPERATOR
+  m_domain.GetStiffnessMatrix()->FinalizeNumericPart(m_domain.GetDirichletDOFs());
+  // NUMEBRING FOR GtG MATRIX
+  m_SetKernelNumbering();
+  // FETI COARSE SPACE 
+  auto mpG = m_p_interfaceOperatorG;
+  mpG->FetiCoarseSpace(_GetDefectPerSubdomains());
+
+
+
+
+
+
+
 
 }
+
+
+
+void Data::SetDirichletDOFs(std::vector<int>&v)
+{
+  //
+  int _size = (int)v.size();
+  m_DirichletGlbDofs.resize(_size); 
+  //
+  for (int dof = 0; dof < _size; dof++)
+    m_DirichletGlbDofs[dof] = v[dof];
+
+
+}
+
+
+
+void Data::m_SetKernelNumbering()
+{
+  m_defectPerSubdomains.resize(m_mpiSize,-1);
+
+  m_container.resize(m_mpiSize,m_domain.GetStiffnessMatrix()->GetDefect());
+
+
+  for (auto& iw : m_container) std::cout<< iw << ' ';
+  std::cout << '\n';
+  MPI_Alltoall(
+      m_container.data(),1,MPI_INT,
+      m_defectPerSubdomains.data(),1,MPI_INT,
+      *m_pcomm);
+
+  for (auto& iw : m_defectPerSubdomains) std::cout<< iw << ' ';
+  std::cout << '\n';
+
+
+
+  m_container.resize(0);
+  m_container.shrink_to_fit();
+//    m_domain.GetStiffnessMatrix()->GetDefect();
+
+  //MPI_Allgather(
+  //  void* send_data,
+  //  int send_count,
+  //  MPI_Datatype send_datatype,
+  //  void* recv_data,
+  //  int recv_count,
+  //  MPI_Datatype recv_datatype,
+  //  MPI_Comm communicator)
+
+
+}
+
+
+
 
 
 
@@ -181,5 +282,62 @@ void Data::howMuchAssembled(int iCell, int nel){
   if ((fmod(aaa, 5)) < 1e-2)
     std::cout << aaa << "% " << "(" << iCell << "," << nel <<
       ") ... fmod(aaa,5)" << (fmod(aaa, 5)) << std::endl;
+
+}
+
+void Data::m_dbg_printStats()
+{
+// test
+  auto mpIO = m_p_interfaceOperatorB;
+
+  int neqDual = m_domain.GetNumberOfDualDOFs();
+  int neqPrimal = m_domain.GetNumberOfPrimalDOFs();
+
+  int nRHS = 3;
+
+  Eigen::MatrixXd vecD(neqDual,nRHS);
+  for (int col = 0; col < nRHS; col++)
+    vecD.col(col) = 10.0 * (col + 1) * Eigen::VectorXd::Ones(neqDual);
+  Eigen::MatrixXd vecP(neqPrimal,nRHS);
+
+  std::cout << "dual\n";
+  for (int i = 0 ; i < neqDual; i++)
+  {
+    for (int j = 0 ; j < nRHS; j++)
+    {
+      std::cout << vecD(i,j) << ' ';
+    }
+    std::cout << std::endl;
+  }
+  std::cout << " *" << std::endl;
+
+
+
+  mpIO->multBt(vecD,vecP);
+
+  std::cout << "primal\n";
+  for (int i = 0 ; i < neqPrimal; i++)
+  {
+    for (int j = 0 ; j < nRHS; j++)
+    {
+      std::cout << vecP(i) << ' ';
+    }
+    std::cout << std::endl;
+  }
+  std::cout << " *" << std::endl;
+
+  mpIO->multB(vecP,vecD);
+  
+  std::cout << "dual\n";
+  for (int i = 0 ; i < neqDual; i++)
+  {
+    for (int j = 0 ; j < nRHS; j++)
+    {
+      std::cout << vecD(i,j) << ' ';
+    }
+    std::cout << std::endl;
+  }
+  std::cout << " *" << std::endl;
+
 
 }
