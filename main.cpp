@@ -17,13 +17,15 @@
 using namespace std;
 using namespace Eigen;
 
-int main(int argc, char **argv) {
-  MPI_Init(&argc, &argv);
+int main(int argc, char **argv) 
+{
 
+  MPI_Init(&argc, &argv);
   MPI_Comm comm;
-  MPI_Comm_dup(MPI_COMM_WORLD, &comm);
+  MPI_Comm_dup(MPI_COMM_WORLD,&comm);
 
   int rank;
+
   MPI_Comm_rank(comm, &rank);
 
   std::string fname = "out_" + std::to_string(rank) + ".txt";
@@ -33,14 +35,14 @@ int main(int argc, char **argv) {
   std::cout.rdbuf(out.rdbuf());
   cout << "SUBDOMAIN id. " << rank << "\n";
 
-/////////////////////
-// Own mesh builder
-// and assembler of A*x=b
+//////////////////////
+// Build-in mesher and
+// assembler of A*x=b
   Mesh mesh;
   {
     // global mesh
-    int n_elements = 2;
-    int n_subdomains = 2;
+    int n_elements = 5;
+    int n_subdomains = 4;
     int n_levels = 0;
     // build-in generator
     mesh.generateMesh( n_elements, n_subdomains, n_levels);
@@ -52,10 +54,14 @@ int main(int argc, char **argv) {
     mesh.extractSubdomainMesh();
   }
 
+//## HDD ##  
+//# initialize library (copy mpi_comm)
   Data dataH(&comm);
   cout << "after dataH\n";
 
+  // TODO make it inside the HDD library
   dataH.getDomain().SetNeighboursRanks(mesh.getNeighboursRanks());
+
 
   // symbolic part
   {
@@ -75,11 +81,18 @@ int main(int argc, char **argv) {
         glbIds[2 * iP + 1] = 2 * iGI + 1;
       }
 //## HDD ##
+//#  loop over subdomain elements
+//#  passing global DOFs element by element - metis decomposition
       dataH.SymbolicAssembling(glbIds);
     }
   }
 
 //## HDD ##
+//# global DOFs where Dirichlet BC is applied
+  dataH.SetDirichletDOFs(mesh.getDirDOFs());
+
+//## HDD ##
+//# creation mapping vectors etc ...
   dataH.FinalizeSymbolicAssembling();
   cout << "after finalizeGlobalIds\n";
 
@@ -131,10 +144,12 @@ int main(int argc, char **argv) {
           f_loc.data() + f_loc.size());
 
 //## HDD ##
+//# loop over elements - passing local stiffness matrices
       dataH.NumericAssembling(glbIds,stdK,stdF);
     }
   }
 //## HDD ##
+//# numerical factorization etc.
   dataH.FinalizeNumericAssembling();
 
 
@@ -147,7 +162,7 @@ int main(int argc, char **argv) {
     fnameVtk = "globalMesh.vtu";
     mesh.writeMesh(mesh.getGlobalMesh(), fnameVtk, true);
   }
-  
+
   std::cout.rdbuf(coutbuf); //reset to standard output again
 
   MPI_Comm_free(&comm);
