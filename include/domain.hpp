@@ -6,31 +6,48 @@
 #include "interface.hpp"
 #include "types.hpp"
 #include "hmpi.hpp"
+//#include "stiffnessMatrix.hpp"
+
+
+class StiffnessMatrix;
 
 
 class Domain 
 {
 
   public:
-//    Domain(int);
     Domain(MPI_Comm*);
-    ~Domain(){}
+    ~Domain();
 
     void SetNeighboursRanks(const std::vector<int>&) ;
     void SetMappingLoc2Glb(std::vector<int>&);
 
-    void NumericAssemblingStiffnessAndRhs(
-        std::vector<int>& glbIds,
-        std::vector<double>& valLocK,
-        std::vector<double>& valLocRHS);
-    void FinalizeStiffnessMatrixAndRhs();
+//    void NumericAssemblingStiffnessAndRhs(
+//        std::vector<int>& glbIds,
+//        std::vector<double>& valLocK,
+//        std::vector<double>& valLocRHS);
+    //void FinalizeStiffnessMatrixAndRhs();
     void SetInterfaces();
+    const std::vector<Interface>& GetInterfaces() {return m_interfaces;};
     Hmpi hmpi;
+    int GetRank(){return m_mpirank;}
+    int GetMpiSize(){return m_mpisize;}
+    int GetNumberOfSubdomains(){return m_mpisize;}
+    int GetNumberOfPrimalDOFs(){return m_neqPrimal;}
+    int GetNumberOfDualDOFs(){return m_neqDual;}
+    void InitStiffnessMatrix();
+    StiffnessMatrix* GetStiffnessMatrix(){return m_p_stiffnessMatrix;}
+    void SetDirichletDOFs(std::vector<int>& glbDirDOFs);
+    const std::vector<int>&  GetDirichletDOFs()const{return m_DirichletDOFs;}
+
+
+//    void SetMatrixG();
 
   private:
 
     void m_Init();
-    int m_rank;
+    int m_mpirank;
+    int m_mpisize;
     MPI_Comm* m_pcomm;
 
     void m_SetMappingGlb2Loc();
@@ -39,33 +56,25 @@ class Domain
 
     std::vector<int> m_neighboursRanks;
 
-    int m_neq;
+    int m_neqPrimal;
+    int m_neqDual;
     int m_l0;
-    int m_cnt_setLocalMatrix;
+    std::vector<int> m_DirichletDOFs;
+
 
     // A * x = b
-    std::vector<T> m_trK;
-    SpMat m_stiffnessMatrix;
+//    int m_cnt_setLocalMatrix;
+    //SpMat m_stiffnessMatrix;
+    StiffnessMatrix* m_p_stiffnessMatrix;
     Eigen::VectorXd m_rhs;
+    Eigen::MatrixXd m_matG;
 
-    //
+    // for interface operator
     std::vector<Interface> m_interfaces;
+    std::vector<int> m_multiplicity;
 
-
-
-
-
-    // dbg - 
+    // dbg ---------------------------- 
     void m_dbg_printNeighboursRanks();
     void m_dbg_print_l2g();
-    void m_dbg_printStiffnessMatrix();
-    void m_dbg_printStiffnessMatrixSingularValues();
-
-
-
-
-
-
-
 
 };
