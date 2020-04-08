@@ -39,12 +39,33 @@ namespace linalg {
   }
 
 
+  void svd0(const Eigen::MatrixXd& dmat, 
+      Eigen::MatrixXd& U, Eigen::VectorXd& diagS, Eigen::MatrixXd& V)
+  {
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(dmat,
+        Eigen::ComputeFullU | Eigen::ComputeFullV);
+    //  cout << "Its singular values are:" << endl << svd.singularValues() << endl;
+    //  cout << "Its left singular vectors are the columns of the thin U matrix:" << 
+    //    endl << svd.matrixU() << endl;
+    //  cout << "Its right singular vectors are the columns of the thin V matrix:" << 
+    //    endl << svd.matrixV() << endl;
+    //  Vector3f rhs(1, 0, 0);
+    //  cout << "Now consider this rhs vector:" << endl << rhs << endl;
+    //  cout << "A least-squares solution of m*x = rhs is:" << endl << svd.solve(rhs) << endl;
+   
+    U = svd.matrixU();
+    diagS = svd.singularValues();
+    V = svd.matrixV();
+  }
+
+
+
 }
 
 namespace tools 
 {
 
-  void printMatrix(SpMat& mat,std::string fname){
+  void printMatrix(const SpMat& mat,std::string fname){
     {
       std::ofstream myfile(fname);
       if (myfile.is_open())
