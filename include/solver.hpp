@@ -7,8 +7,9 @@
 class Solver
 {
   public:
-    Solver(Mesh* mesh,Data* data);
+    Solver(Data* data);
     ~Solver(){}
+    void pcpg();
   private:
     DirectSolver m_directSolver;
 
