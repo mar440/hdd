@@ -31,6 +31,9 @@ class Hmpi
                 void *recvbuf, const int *recvcounts, const int *displs,
                 int root);
 
+    void ScattervDbl(void *sendbuf, int *sendcnts, int *displs,
+        void *recvbuf, int recvcnt, int root);
+
     void BcastInt(void *buffer, int count, int root);
 
     void BcastDbl(void *buffer, int count, int root);

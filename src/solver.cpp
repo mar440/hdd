@@ -1,52 +1,106 @@
 #include "../include/solver.hpp"
 #include "../include/types.hpp"
+#include "../include/data.hpp"
+#include "../include/domain.hpp"
 #include <iostream>
+#include "../include/stiffnessMatrix.hpp"
 //#include <Eigen/PardisoSupport>
 
 
 using namespace std;
 
-Solver::Solver(Data* data)
+Solver::Solver()
 {
-
+ // m_p_data = p_data;
 }
 
 
 
-void Solver::pcpg(){
+void Solver::pcpg(Data& data)
+{
 //      clock_t begin = clock();
 
-#if 0
     double eps_iter = 1.0e-4; //atof(options2["eps_iter"].c_str());
     double max_iter = 200; //atoi(options2["max_iter"].c_str());
 
     double gPz, gPz_prev, wFw, rho, gamma, norm_gPz0;
-    Vector g0, d_rhs, e, iGTG_e, lambda, z, Pz;
-    Vector Fw, Pg, g, w, w_prev;
-    Vector beta, alpha;
+    Eigen::MatrixXd g0, d_rhs, e_loc, e_glb;
+    Eigen::MatrixXd iGTG_e, lambda, z, Pz;
+    Eigen::MatrixXd Fw, Pg, g, w, w_prev;
+    Eigen::MatrixXd beta, alpha;
 
-    vector < Vector > xx, yy;
+    Eigen::MatrixXd xx;
+    Eigen::MatrixXd yy;
+    Eigen::MatrixXd lambda0,invGtG_e;
 
-    int nSubClst = cluster.get_nSubClst();
-    xx.resize(nSubClst);
-    yy.resize(nSubClst);
+//    int nSubClst = cluster.get_nSubClst();
+//    xx.resize(nSubClst);
+//    yy.resize(nSubClst);
 
-    xx[0].set_label("test");
-    cluster.mult_Kplus_f(cluster.rhs,xx);
 
-    cluster.mult_Bf(xx,d_rhs);
 
-    // e = Rt * f
-    cluster.mult_RfT(cluster.rhs,e);
+
+    auto &domain = *(data.GetDomain());
+    auto &K = *(domain.GetStiffnessMatrix());
+    auto rhs_primal = K.GetRHS();
+
+    K.solve(rhs_primal,xx);
+
+    auto  p_opB = data.GetInterfaceOperatorB(); //mult(xx,d_rhs);
+//    auto  p_opG = data.GetInterfaceOperatorG(); //mult(xx,d_rhs);
+    auto  &R_kerK = *(K.GetKernel());
+
+    p_opB->multB(xx, d_rhs);
+
+
+
+
+    // TEST ===============================================
+    //Eigen::MatrixXd v1(domain.GetNumberOfPrimalDOFs(),3);
+    //v1.setOnes();
+    //Eigen::MatrixXd jumps;
+
+    //p_opB->multB(v1, jumps);
+    //std::cout <<"jumps: " <<  jumps << '\n';
+    // TEST ===============================================
+
+
+    // !!! e_loc = -Rt*f as well as G = -Rt * Bt
+    e_loc = (-1) * R_kerK.transpose() * rhs_primal;
+
+    std::cout << "e_loc = \n" << e_loc << '\n';
+
+    p_opB->mult_invGtG(e_loc,invGtG_e);
+    Eigen::MatrixXd RinvGtG_e = R_kerK * invGtG_e;
+    p_opB->multB(RinvGtG_e,lambda0);
+    lambda0 *= -1;
+
+//    std::cout << "lambda0 = \n" << lambda0 << '\n';
+
+
+    Eigen::MatrixXd Bt_lambda0;
+    p_opB->multBt(lambda0,Bt_lambda0);
+    Eigen::MatrixXd Gt_lambda0 = (-1) * R_kerK.transpose() * Bt_lambda0;
+
+    std::cout << "Gt_lambda0 = \n" << Gt_lambda0 << '\n'; 
+
+    Eigen::MatrixXd del = Gt_lambda0 - e_loc;
+    std::cout << "|| Gt*lambda0 - e ||  = \n" << del.norm() << '\n';
+
+    MatrixXd Plambda0;
+    p_opB->Projection(lambda0,Plambda0);
+    std::cout << "Plambda0 = \n" << Plambda0 << '\n';
+
 
     // lambda0 = G * inv(GtG) * e
-    iGTG_e.mat_mult_dense(cluster.invGfTGf,"N",e,"N");
-    cluster.mult_Gf(iGTG_e, lambda);
+//    iGTG_e.mat_mult_dense(cluster.invGfTGf,"N",e,"N");
+//    cluster.mult_Gf(iGTG_e, lambda);
 
 
     // F * lambda0
-    cluster.mult_Ff(lambda,g0);
+    p_opB->mult_F(lambda,g0);
     // g0 = F * lambda0 - d_rhs
+#if 0
     g0.add(d_rhs,-1);
 
     g = g0;

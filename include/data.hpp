@@ -25,8 +25,10 @@ class Data{
         std::vector<double>& valLocRHS);
     void FinalizeNumericAssembling();
 
-    Domain& getDomain(){return  m_domain;}
+    Domain* GetDomain(){return  &m_domain;}
     void SetDirichletDOFs(std::vector<int>&v);
+    InterfaceOperatorB* GetInterfaceOperatorB(){return m_p_interfaceOperatorB;}
+//    InterfaceOperatorG* GetInterfaceOperatorG(){return m_p_interfaceOperatorG;}
 
 
 
@@ -40,7 +42,7 @@ class Data{
     std::vector<int> m_DirichletGlbDofs;
     Domain m_domain;
     InterfaceOperatorB* m_p_interfaceOperatorB;
-    InterfaceOperatorG* m_p_interfaceOperatorG;
+    //InterfaceOperatorG* m_p_interfaceOperatorG;
 
     int m_cnt_setLocalMatrix;
 

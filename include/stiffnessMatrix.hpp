@@ -19,11 +19,14 @@ class StiffnessMatrix
 
     void AddElementContribution(std::vector<int>& glbIds,
         std::vector<double>& valLocK);
+    void AddRHSContribution(std::vector<int>& glbIds,
+        std::vector<double>& valLocF);
     void FinalizeNumericPart(const std::vector<int>& DirDOFs);
     void solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out);
     Eigen::MatrixXd* GetKernel(){ return &m_kerK;}
     int GetDefect(){return m_kerK.cols();}
     void ApplyDirichletBC(SpMat& spmat, std::vector<int> dirInd);
+    const Eigen::VectorXd& GetRHS()const {return  m_rhs;};
 
   private:
     Eigen::MatrixXd m_kerK;
@@ -31,11 +34,13 @@ class StiffnessMatrix
     Eigen::PardisoLU <SpMat> m_pardisoSolver;
 
     int m_cnt_setLocalMatrix;
+    int m_cnt_setLocalRHS;
     int m_numberOfElements;
     std::vector<T> m_trK;
     std::map<int,int>* m_pg2l;
     SpMat m_spmatK;
     int m_myrank;
+    Eigen::VectorXd m_rhs;
 
     int m_neq;
 

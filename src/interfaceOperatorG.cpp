@@ -1,5 +1,5 @@
+#if 0
 #include "../include/interfaceOperatorG.hpp"
-
 
 #include "../include/domain.hpp"
 #include "../include/stiffnessMatrix.hpp"
@@ -18,6 +18,7 @@ InterfaceOperatorG::InterfaceOperatorG(Domain* p_dom)
   m_listOfNeighbours.resize(0);
   m_listOfNeighboursColumPtr.resize(0);
   m_spmatGtG.resize(0,0);
+  m_p_defectPerSubdomains = nullptr;
 
 }
 
@@ -27,7 +28,6 @@ void InterfaceOperatorG::_placeBlockInGlobalGtG(
     std::vector<int>& I_COO,
     std::vector<int>& J_COO,
     std::vector<double>& V_COO,
-//    std::vector<T>& _tr,
     Eigen::Ref<Eigen::MatrixXd> _GtG,
     int& tripletOffset, int offsetRow, int offsetCol)
 {
@@ -53,6 +53,27 @@ void InterfaceOperatorG::_placeBlockInGlobalGtG(
 
 void InterfaceOperatorG::FetiCoarseSpace(
     std::vector<int>& defectPerSubdomains)
+{
+
+  m_p_defectPerSubdomains =  &defectPerSubdomains;
+  _FetiCoarseSpaceAssembling();
+
+  m_pardisoSolver.analyzePattern(m_spmatGtG);
+  m_pardisoSolver.factorize(m_spmatGtG);
+
+}
+
+void InterfaceOperatorG::solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
+{
+
+  out = m_pardisoSolver.solve(in);
+
+}
+
+
+
+
+void InterfaceOperatorG::_FetiCoarseSpaceAssembling()
 {
 
   auto kerK = m_p_domain->GetStiffnessMatrix()->GetKernel();
@@ -85,7 +106,7 @@ void InterfaceOperatorG::FetiCoarseSpace(
 
     int neqIntf = (int) iItf.m_interfaceDOFs.size();
 
-    int nRHS_neighb = defectPerSubdomains[iItf.GetNeighbRank()];
+    int nRHS_neighb = (*m_p_defectPerSubdomains)[iItf.GetNeighbRank()];
 
 
     BR_myRank[cntI].resize(neqIntf,nRHS_myRank);
@@ -215,7 +236,7 @@ void InterfaceOperatorG::FetiCoarseSpace(
 
   int cntI(0);
   for (auto& itf : interfaces){
-    int tmp0 = defectPerSubdomains[itf.GetNeighbRank()] * myDefect;
+    int tmp0 = (*m_p_defectPerSubdomains)[itf.GetNeighbRank()] * myDefect;
     int tmp1 = GtG_local_offdiag[cntI++].size();
     sizeOfSendingBuffer += tmp0;
     std::cout << "tmp0 & tmp1: " << tmp0 << ' ' << tmp1 << '\n';
@@ -260,7 +281,7 @@ void InterfaceOperatorG::FetiCoarseSpace(
     {
       int diagRank = in;
 
-      int defectDiag = defectPerSubdomains[diagRank];
+      int defectDiag = (*m_p_defectPerSubdomains)[diagRank];
 
       sizePerRank.push_back(pow(defectDiag,2));
 
@@ -270,7 +291,7 @@ void InterfaceOperatorG::FetiCoarseSpace(
       {
 
         int offdiagRank = m_listOfNeighbours[jn];
-        int defectOffdiag = defectPerSubdomains[offdiagRank];
+        int defectOffdiag = (*m_p_defectPerSubdomains)[offdiagRank];
 
         sizePerRank.back() += defectDiag * defectOffdiag;
       }
@@ -314,7 +335,7 @@ void InterfaceOperatorG::FetiCoarseSpace(
   {
     nnzGtG = (int)receivingBuffer.size();
 
-    for (auto& ii : defectPerSubdomains)
+    for (auto& ii : (*m_p_defectPerSubdomains))
       defectGtG += ii;
   }
 
@@ -338,11 +359,11 @@ void InterfaceOperatorG::FetiCoarseSpace(
     V_COO_GtG.resize(nnzGtG);
 
 
-    std::vector<int>  cumulativeDefectPerSubdomains(defectPerSubdomains.size(),0);
-    for (int ii = 0; ii < (int) defectPerSubdomains.size() - 1 ; ii++)
+    std::vector<int>  cumulativeDefectPerSubdomains((*m_p_defectPerSubdomains).size(),0);
+    for (int ii = 0; ii < (int) (*m_p_defectPerSubdomains).size() - 1 ; ii++)
     {
       cumulativeDefectPerSubdomains[ii+1] = 
-        cumulativeDefectPerSubdomains[ii] + defectPerSubdomains[ii];
+        cumulativeDefectPerSubdomains[ii] + (*m_p_defectPerSubdomains)[ii];
     }
 
     int cntGtG(0);
@@ -352,7 +373,7 @@ void InterfaceOperatorG::FetiCoarseSpace(
     for (int in = 0; in < (int) numberOfNeighboursRoot.size(); in++ )
     {
       int diagRank = in;
-      int defectDiag = defectPerSubdomains[diagRank];
+      int defectDiag = (*m_p_defectPerSubdomains)[diagRank];
 
       Eigen::Map<Eigen::MatrixXd> 
         GtG_local_diag(receivingBuffer.data() + cntAllElements,
@@ -379,7 +400,7 @@ void InterfaceOperatorG::FetiCoarseSpace(
       {
 
         int offdiagRank = m_listOfNeighbours[jn];
-        int defectOffdiag = defectPerSubdomains[offdiagRank];
+        int defectOffdiag = (*m_p_defectPerSubdomains)[offdiagRank];
 
         Eigen::Map<Eigen::MatrixXd> 
           GtG_local_offdiag(receivingBuffer.data() + cntAllElements,
@@ -424,5 +445,5 @@ void InterfaceOperatorG::FetiCoarseSpace(
   tools::printMatrix(m_spmatGtG,fname);
 
 
-
 }
+#endif

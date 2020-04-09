@@ -41,8 +41,8 @@ int main(int argc, char **argv)
   Mesh mesh;
   {
     // global mesh
-    int n_elements = 5;
-    int n_subdomains = 4;
+    int n_elements = 1;
+    int n_subdomains = 2;
     int n_levels = 0;
     // build-in generator
     mesh.generateMesh( n_elements, n_subdomains, n_levels);
@@ -52,6 +52,8 @@ int main(int argc, char **argv)
 // decomposition
   {
     mesh.extractSubdomainMesh();
+    std::string fnameVtk = "mesh_" + std::to_string(rank) + ".vtu";
+    mesh.writeMesh(mesh.getSubdomainMesh(), fnameVtk, true);
   }
 
 //## HDD ##  
@@ -60,7 +62,7 @@ int main(int argc, char **argv)
   cout << "after dataH\n";
 
   // TODO make it inside the HDD library
-  dataH.getDomain().SetNeighboursRanks(mesh.getNeighboursRanks());
+  dataH.GetDomain()->SetNeighboursRanks(mesh.getNeighboursRanks());
 
 
   // symbolic part
@@ -117,6 +119,11 @@ int main(int argc, char **argv)
       switch (cell->GetCellType()){
         case VTK_QUADRATIC_QUAD:
           element = new QUADRATIC_QUAD;
+          std::cout << "quadratic_quad\n";
+          break;
+        case VTK_QUAD:
+          element = new QUAD;
+          std::cout << "quad\n";
           break;
         default:
           continue;
@@ -153,15 +160,18 @@ int main(int argc, char **argv)
   dataH.FinalizeNumericAssembling();
 
 
-  //  Solver solver(&mesh,&dataH);
-  std::string fnameVtk = "mesh_" + std::to_string(rank) + ".vtu";
-  mesh.writeMesh(mesh.getSubdomainMesh(), fnameVtk, true);
+  Solver solver;
 
-  if (rank == 0)
-  {
-    fnameVtk = "globalMesh.vtu";
-    mesh.writeMesh(mesh.getGlobalMesh(), fnameVtk, true);
-  }
+  solver.pcpg(dataH);
+
+//  std::string fnameVtk = "mesh_" + std::to_string(rank) + ".vtu";
+//  mesh.writeMesh(mesh.getSubdomainMesh(), fnameVtk, true);
+//
+//  if (rank == 0)
+//  {
+//    fnameVtk = "globalMesh.vtu";
+//    mesh.writeMesh(mesh.getGlobalMesh(), fnameVtk, true);
+//  }
 
   std::cout.rdbuf(coutbuf); //reset to standard output again
 

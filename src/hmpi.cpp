@@ -69,6 +69,14 @@ void Hmpi::GathervDbl(const void *sendbuf, int sendcount,
 
 }
 
+void Hmpi::ScattervDbl(void *sendbuf, int *sendcnts, int *displs,
+  void *recvbuf, int recvcnt, int root)
+{
+
+  MPI_Scatterv(sendbuf,sendcnts,displs,MPI_DOUBLE,
+      recvbuf,recvcnt, MPI_DOUBLE,root,*m_pcomm);
+}
+
 void Hmpi::BcastInt(void *buffer, int count, int root)
 {
   MPI_Bcast(buffer,count, MPI_INT, root, *m_pcomm);

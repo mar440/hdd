@@ -46,5 +46,16 @@ class QUADRATIC_QUAD : public Element2D {
         VectorXd &t, VectorXd &w);
     void shapeFun(VectorXd &N, VectorXd &dNr, VectorXd &dNs,
         VectorXd &dNt, double r, double s, double t);
-
 };
+
+
+class QUAD : public Element2D {
+  public:
+    QUAD();
+    QUAD(int _nGP) : Element2D(_nGP){}
+    ~QUAD(){}
+    void GaussPoints(int nGP, VectorXd &r, VectorXd &s, VectorXd &t, VectorXd &w);
+    void shapeFun(VectorXd &N, VectorXd &dNr, VectorXd &dNs, VectorXd &dNt,
+        double r, double s, double t);
+    void shapeFun2(VectorXd &dNrr, VectorXd &dNss, VectorXd &dNrs, double r, double s){};
+  };

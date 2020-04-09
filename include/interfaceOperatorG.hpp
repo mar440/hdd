@@ -1,29 +1,31 @@
+#if 0
 #pragma once
 #include <vector>
 #include "types.hpp"
-
+#include <Eigen/Sparse>
+#include <Eigen/PardisoSupport>
 
 class Domain;
-
 class InterfaceOperatorG
 {
-
 
   public:
     InterfaceOperatorG(Domain* _domain);
     ~InterfaceOperatorG(){}
-//    void multBt(Eigen::MatrixXd& in, Eigen::MatrixXd& out);
-//    void multB(Eigen::MatrixXd& in, Eigen::MatrixXd& out);
     void FetiCoarseSpace(std::vector<int>&);
   private:
 
+    void _FetiCoarseSpaceAssembling();
+    std::vector<int>* m_p_defectPerSubdomains;
+
+
     Domain* m_p_domain;
-    std::vector<int> m_ibuf;
     std::vector<double> m_dbufToSend;
     std::vector<double> m_dbufToRecv;
 
     std::vector<int> m_listOfNeighbours;
     std::vector<int> m_listOfNeighboursColumPtr;
+    void solve(const Eigen::MatrixXd&, Eigen::MatrixXd&);
 
     void _placeBlockInGlobalGtG(
         std::vector<int>& I_COO,
@@ -34,8 +36,11 @@ class InterfaceOperatorG
         int& tripletOffset, int rowOffset, int colOffset);
     SpMat m_spmatGtG;
 
+    Eigen::PardisoLU<SpMat> m_pardisoSolver;
+
 
 
 
 
 };
+#endif

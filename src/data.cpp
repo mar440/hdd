@@ -17,7 +17,7 @@ Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
 {
   m_pcomm = _pcomm;
   m_p_interfaceOperatorB = nullptr;
-  m_p_interfaceOperatorG = nullptr;
+//  m_p_interfaceOperatorG = nullptr;
   MPI_Comm_rank(*m_pcomm, &m_mpiRank);
   MPI_Comm_size(*m_pcomm, &m_mpiSize);
   m_container.resize(0);
@@ -29,8 +29,8 @@ Data::~Data()
 {
   if (m_p_interfaceOperatorB)
     delete m_p_interfaceOperatorB;
-  if (m_p_interfaceOperatorG)
-    delete m_p_interfaceOperatorG;
+//  if (m_p_interfaceOperatorG)
+//    delete m_p_interfaceOperatorG;
 }
 
 void Data::SymbolicAssembling(std::vector<int>& elemntIds)
@@ -54,10 +54,10 @@ void Data::FinalizeSymbolicAssembling()
   //
   m_domain.SetInterfaces();
   m_p_interfaceOperatorB = new InterfaceOperatorB(&m_domain);
-  m_p_interfaceOperatorG = new InterfaceOperatorG(&m_domain);
+  //m_p_interfaceOperatorG = new InterfaceOperatorG(&m_domain);
 
 
-#if DBG>2
+#if DBG>5
   m_dbg_printStats();
 #endif
 
@@ -73,6 +73,7 @@ void Data::NumericAssembling(std::vector<int>& glbIds,
         std::vector<double>& valLocRHS)
 {
   m_domain.GetStiffnessMatrix()->AddElementContribution(glbIds, valLocK);
+  m_domain.GetStiffnessMatrix()->AddRHSContribution(glbIds, valLocRHS);
 }
 
 
@@ -93,8 +94,8 @@ void Data::FinalizeNumericAssembling()
   // NUMEBRING FOR GtG MATRIX
   m_SetKernelNumbering();
   // FETI COARSE SPACE 
-  auto mpG = m_p_interfaceOperatorG;
-  mpG->FetiCoarseSpace(_GetDefectPerSubdomains());
+  auto mpB = m_p_interfaceOperatorB;
+  mpB->FetiCoarseSpace(_GetDefectPerSubdomains());
 
 
 

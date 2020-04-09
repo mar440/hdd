@@ -13,11 +13,14 @@ StiffnessMatrix::StiffnessMatrix(
   m_pg2l = pg2l;
 
   m_cnt_setLocalMatrix =0;
+  m_cnt_setLocalRHS=0;
+
   m_numberOfElements = 0;
   m_spmatK.resize(0,0);
   m_trK.resize(0);
   m_myrank = my_rank;
   m_neq = m_pg2l->size();
+  m_rhs.resize(0);
 
 }
 
@@ -71,6 +74,38 @@ void StiffnessMatrix::AddElementContribution(std::vector<int>& glbIds,
 
 }
 
+
+void StiffnessMatrix::AddRHSContribution(std::vector<int>& glbIds,
+    std::vector<double>& valLocF)
+{
+
+  if (m_cnt_setLocalRHS==0)
+  {
+    m_rhs.resize(m_neq);
+    m_rhs.setZero();
+#if DBG > 0
+    std::cout << "local numbering (RHS) - start\n";
+#endif
+  }
+
+
+
+  int neqLocal = glbIds.size();
+
+  if (pow(neqLocal,2) != valLocF.size())
+    std::runtime_error(__FILE__);
+
+  int rowLocal(0);
+
+  for (int row = 0; row < neqLocal; row++)
+  {
+    rowLocal = (*m_pg2l)[glbIds[row]];
+    m_rhs(rowLocal) += valLocF[row];
+  }
+
+  m_cnt_setLocalRHS++;
+
+}
 
 void StiffnessMatrix::m_FactorizeLinearOperator(std::vector<int> nullPivots)
 {

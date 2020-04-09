@@ -1,16 +1,18 @@
 #pragma once
-#include "data.hpp"
 #include "mesh.hpp"
 #include "directSolver.hpp"
 
 
+class Data;
+
 class Solver
 {
   public:
-    Solver(Data* data);
+    Solver();
     ~Solver(){}
-    void pcpg();
+    void pcpg(Data&);
   private:
-    DirectSolver m_directSolver;
+//    DirectSolver m_directSolver;
+//    Data* m_p_data;
 
 };
