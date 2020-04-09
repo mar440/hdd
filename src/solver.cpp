@@ -36,7 +36,7 @@ void Solver::pcpg(Data& data)
 
     Eigen::MatrixXd xx;
     Eigen::MatrixXd yy;
-    Eigen::MatrixXd lambda0,invGtG_e;
+    Eigen::MatrixXd invGtG_e;
 
 //    int nSubClst = cluster.get_nSubClst();
 //    xx.resize(nSubClst);
@@ -76,14 +76,14 @@ void Solver::pcpg(Data& data)
 
     p_opB->mult_invGtG(e_loc,invGtG_e);
     Eigen::MatrixXd RinvGtG_e = R_kerK * invGtG_e;
-    p_opB->multB(RinvGtG_e,lambda0);
-    lambda0 *= -1;
+    p_opB->multB(RinvGtG_e,lambda);
+    lambda *= -1;
 
-//    std::cout << "lambda0 = \n" << lambda0 << '\n';
+//    std::cout << "lambda = \n" << lambda << '\n';
 
 
     Eigen::MatrixXd Bt_lambda0;
-    p_opB->multBt(lambda0,Bt_lambda0);
+    p_opB->multBt(lambda,Bt_lambda0);
     Eigen::MatrixXd Gt_lambda0 = (-1) * R_kerK.transpose() * Bt_lambda0;
 
     std::cout << "Gt_lambda0 = \n" << Gt_lambda0 << '\n'; 
@@ -92,7 +92,7 @@ void Solver::pcpg(Data& data)
     std::cout << "|| Gt*lambda0 - e ||  = \n" << del.norm() << '\n';
 
     MatrixXd Plambda0;
-    p_opB->Projection(lambda0,Plambda0);
+    p_opB->Projection(lambda,Plambda0);
     std::cout << "Plambda0 = \n" << Plambda0 << '\n';
 
 
@@ -100,10 +100,9 @@ void Solver::pcpg(Data& data)
 //    iGTG_e.mat_mult_dense(cluster.invGfTGf,"N",e,"N");
 //    cluster.mult_Gf(iGTG_e, lambda);
 
-    lambda = lambda0;
 
-    // g0 = F * lambda0 - d_rhs
-    p_opB->mult_F(lambda0,g0);
+    // g0 = F * lambda - d_rhs
+    p_opB->mult_F(lambda,g0);
     g0 -= d_rhs;
 
     g = g0;
@@ -142,42 +141,49 @@ void Solver::pcpg(Data& data)
 
     for (int it = 0; it < max_iter; it++){
 
-    if (domain.GetRank() == 0)
-    {
+      if (domain.GetRank() == 0)
         printf("%4d\t%3.9e \n",it + 1, sqrt(gtPz(0,0)) / norm_gPz0);
-    }
-        if (sqrt(gtPz(0,0)) < eps_iter * norm_gPz0)
-            break;
 
-        p_opB->mult_F(w,Fw);
-        wtFw = w.transpose() * Fw;
-        domain.hmpi.GlobalSum(wtFw.data(),wtFw.size());
-        wtFw *= 0.5;
+      if (sqrt(gtPz(0,0)) < eps_iter * norm_gPz0)
+        break;
 
-        rho = -gtPz(0,0) / wtFw(0,0);
+      p_opB->mult_F(w,Fw);
+      wtFw = w.transpose() * Fw;
+      domain.hmpi.GlobalSum(wtFw.data(),wtFw.size());
+      wtFw *= 0.5;
 
-        lambda += w * rho;
-        g += Fw * rho;
+      rho = -gtPz(0,0) / wtFw(0,0);
 
-        p_opB->Projection(g,Pg);
-        z = Pg;//cluster.Preconditioning(Pg,z);
-        Pz = z;//cluster.Projection(z,Pz,beta);
+      lambda += w * rho;
+      g += Fw * rho;
 
-        gtPz_prev = gtPz;
-        gtPz = g.transpose() * Pz;
-        domain.hmpi.GlobalSum(gtPz.data(),gtPz.size());
-        gtPz *= 0.5;
+      p_opB->Projection(g,Pg);
+      z = Pg;//cluster.Preconditioning(Pg,z);
+      Pz = z;//cluster.Projection(z,Pz,beta);
 
-        gamma = gtPz(0,0) / gtPz_prev(0,0);
+      gtPz_prev = gtPz;
+      gtPz = g.transpose() * Pz;
+      domain.hmpi.GlobalSum(gtPz.data(),gtPz.size());
+      gtPz *= 0.5;
 
-        w_prev = w;
-        w = Pz;
-        w = w_prev * gamma;
+      gamma = gtPz(0,0) / gtPz_prev(0,0);
+
+      w_prev = w;
+      w = Pz;
+      w += w_prev * gamma;
 
 //        if (options2["vtkWithinIter"].compare("true") == 0)
 //            cluster.printVTK(yy, xx, lambda, alpha, it);
     }
 
+
+//    Eigen::MatrixXd  BtLambda;
+//    p_opB->multBt(lambda,BtLambda);
+//    
+//
+//    lambda;
+
+    
 #if 0
 //    clock_t end = clock();
 //    time_solver = double(end - begin) / CLOCKS_PER_SEC;

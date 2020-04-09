@@ -41,8 +41,8 @@ int main(int argc, char **argv)
   Mesh mesh;
   {
     // global mesh
-    int n_elements = 1;
-    int n_subdomains = 2;
+    int n_elements = 10;
+    int n_subdomains = 8;
     int n_levels = 0;
     // build-in generator
     mesh.generateMesh( n_elements, n_subdomains, n_levels);
