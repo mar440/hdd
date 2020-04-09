@@ -649,9 +649,9 @@ void InterfaceOperatorB::mult_F(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
   
   auto *Kplus = m_p_domain->GetStiffnessMatrix();
 
-//  multBt(in, Bt_in);
-//  Kplus->solve(Bt_in,Kplus_Bt_in);   Bt_in.resize(0,0);
-//  multB(Kplus_Bt_in, out);  Kplus_Bt_in.resize(0,0);
+  multBt(in, Bt_in);
+  Kplus->solve(Bt_in,Kplus_Bt_in);   Bt_in.resize(0,0);
+  multB(Kplus_Bt_in, out);  Kplus_Bt_in.resize(0,0);
 
 }
 

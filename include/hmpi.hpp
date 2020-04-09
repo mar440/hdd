@@ -38,6 +38,8 @@ class Hmpi
 
     void BcastDbl(void *buffer, int count, int root);
 
+    void GlobalSum(double * in_out_buffre, int count);
+
   private:
     MPI_Comm* m_pcomm;
 

@@ -1,6 +1,7 @@
 #include "../include/hmpi.hpp"
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 #define TAG_SEND_INT 1000
 
@@ -85,6 +86,15 @@ void Hmpi::BcastInt(void *buffer, int count, int root)
 void Hmpi::BcastDbl(void *buffer, int count, int root)
 {
   MPI_Bcast(buffer,count, MPI_DOUBLE, root, *m_pcomm);
+}
+
+
+void Hmpi::GlobalSum(double * in_out_buffer, int count)
+{
+  std::vector<double> send_buffer(in_out_buffer,  in_out_buffer + count);
+
+  MPI_Allreduce(send_buffer.data(), in_out_buffer, count, MPI_DOUBLE,
+      MPI_SUM,*m_pcomm);
 }
 
 void Hmpi::Barrier()

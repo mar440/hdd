@@ -21,13 +21,18 @@ void Solver::pcpg(Data& data)
 //      clock_t begin = clock();
 
     double eps_iter = 1.0e-4; //atof(options2["eps_iter"].c_str());
-    double max_iter = 200; //atoi(options2["max_iter"].c_str());
+    double max_iter = 50; //atoi(options2["max_iter"].c_str());
 
-    double gPz, gPz_prev, wFw, rho, gamma, norm_gPz0;
+    //double gPz, gPz_prev, wFw, rho, gamma, norm_gPz0;
+    double gPz_prev, wFw, rho, gamma, norm_gPz0;
+
+    Eigen::MatrixXd gtPz, gtPz_prev;
+
     Eigen::MatrixXd g0, d_rhs, e_loc, e_glb;
     Eigen::MatrixXd iGTG_e, lambda, z, Pz;
     Eigen::MatrixXd Fw, Pg, g, w, w_prev;
     Eigen::MatrixXd beta, alpha;
+    Eigen::MatrixXd wtFw;
 
     Eigen::MatrixXd xx;
     Eigen::MatrixXd yy;
@@ -47,7 +52,6 @@ void Solver::pcpg(Data& data)
     K.solve(rhs_primal,xx);
 
     auto  p_opB = data.GetInterfaceOperatorB(); //mult(xx,d_rhs);
-//    auto  p_opG = data.GetInterfaceOperatorG(); //mult(xx,d_rhs);
     auto  &R_kerK = *(K.GetKernel());
 
     p_opB->multB(xx, d_rhs);
@@ -96,62 +100,85 @@ void Solver::pcpg(Data& data)
 //    iGTG_e.mat_mult_dense(cluster.invGfTGf,"N",e,"N");
 //    cluster.mult_Gf(iGTG_e, lambda);
 
+    lambda = lambda0;
 
-    // F * lambda0
-    p_opB->mult_F(lambda,g0);
     // g0 = F * lambda0 - d_rhs
-#if 0
-    g0.add(d_rhs,-1);
+    p_opB->mult_F(lambda0,g0);
+    g0 -= d_rhs;
 
     g = g0;
 
     // Pg0
-    cluster.Projection(g,Pg,alpha);
-    cluster.Preconditioning(Pg,z);
-    cluster.Projection(z,Pz,beta);
-    gPz = Matrix::dot(g,Pz);
+    p_opB->Projection(g,Pg);
+    z = Pg;  //    cluster.Preconditioning(Pg,z);
+    Pz = z;  //    cluster.Projection(z,Pz,beta);
 
-    double norm_g0Pg0 = sqrt(Matrix::dot(g,Pg));
+    gtPz = g.transpose()*Pz;
+    domain.hmpi.GlobalSum(gtPz.data(),gtPz.size());
+    //TODO correction since lambda lives on two subdomains 
+    gtPz *= 0.5;
 
-    norm_gPz0 = sqrt(gPz);
+    Eigen::MatrixXd g0tPg0 =  g.transpose() * Pg;
+    domain.hmpi.GlobalSum(g0tPg0.data(),g0tPg0.size());
+    g0tPg0 *= 0.5;
 
-    printf("\n|g0Pg0| = %3.9e  \n", norm_g0Pg0);
-    printf(  "|gPz0|  = %3.9e  \n\n", norm_gPz0);
+    double norm_g0Pg0 = sqrt(g0tPg0(0,0));
+
+    norm_gPz0 = sqrt(gtPz(0,0));
+
+    if (domain.GetRank() == 0)
+    {
+      printf("\n|g0Pg0| = %3.9e  \n", norm_g0Pg0);
+      printf(  "|gPz0|  = %3.9e  \n\n", norm_gPz0);
+    }
     w = Pz;
 
-    printf("=======================\n");
-    printf(" it.\t||gradient||\n");
-    printf("=======================\n");
+    if (domain.GetRank() == 0)
+    {
+      printf("=======================\n");
+      printf(" it.\t||gradient||\n");
+      printf("=======================\n");
+    }
 
     for (int it = 0; it < max_iter; it++){
 
-        printf("%4d\t%3.9e \n",it + 1, sqrt(gPz) / norm_gPz0);
-        if (sqrt(gPz) < eps_iter * norm_gPz0)
+    if (domain.GetRank() == 0)
+    {
+        printf("%4d\t%3.9e \n",it + 1, sqrt(gtPz(0,0)) / norm_gPz0);
+    }
+        if (sqrt(gtPz(0,0)) < eps_iter * norm_gPz0)
             break;
 
-        cluster.mult_Ff(w,Fw);
-        wFw = Matrix::dot(w,Fw);
-        rho = -gPz / wFw;
+        p_opB->mult_F(w,Fw);
+        wtFw = w.transpose() * Fw;
+        domain.hmpi.GlobalSum(wtFw.data(),wtFw.size());
+        wtFw *= 0.5;
 
-        lambda.add(w,rho);
-        g.add(Fw,rho);
+        rho = -gtPz(0,0) / wtFw(0,0);
 
-        cluster.Projection(g,Pg,alpha);
-        cluster.Preconditioning(Pg,z);
-        cluster.Projection(z,Pz,beta);
+        lambda += w * rho;
+        g += Fw * rho;
 
-        gPz_prev = gPz;
-        gPz = Matrix::dot(g,Pz);
+        p_opB->Projection(g,Pg);
+        z = Pg;//cluster.Preconditioning(Pg,z);
+        Pz = z;//cluster.Projection(z,Pz,beta);
 
-        gamma = gPz / gPz_prev;
+        gtPz_prev = gtPz;
+        gtPz = g.transpose() * Pz;
+        domain.hmpi.GlobalSum(gtPz.data(),gtPz.size());
+        gtPz *= 0.5;
+
+        gamma = gtPz(0,0) / gtPz_prev(0,0);
 
         w_prev = w;
         w = Pz;
-        w.add(w_prev,gamma);
+        w = w_prev * gamma;
 
-        if (options2["vtkWithinIter"].compare("true") == 0)
-            cluster.printVTK(yy, xx, lambda, alpha, it);
+//        if (options2["vtkWithinIter"].compare("true") == 0)
+//            cluster.printVTK(yy, xx, lambda, alpha, it);
     }
+
+#if 0
 //    clock_t end = clock();
 //    time_solver = double(end - begin) / CLOCKS_PER_SEC;
 
