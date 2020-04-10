@@ -14,3 +14,6 @@ typedef Eigen::Triplet<double> T;
 #define FORMULATION_ID "FormulationId"
 #define MATERIAL_ID "MaterialId"
 #define DISPLACEMENT "displacement"
+
+
+enum PRECONDITIONER_TYPE {NONE, LUMPED, DIRICHLET};

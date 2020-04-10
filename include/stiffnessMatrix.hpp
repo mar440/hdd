@@ -27,7 +27,8 @@ class StiffnessMatrix
     int GetDefect(){return m_kerK.cols();}
     void ApplyDirichletBC(SpMat& spmat, std::vector<int> dirInd);
     const Eigen::VectorXd& GetRHS()const {return  m_rhs;};
-    void mult(const Eigen::MatrixXd&, Eigen::MatrixXd&);
+    void Mult(const Eigen::MatrixXd&, Eigen::MatrixXd&);
+    void Precond(const Eigen::MatrixXd&, Eigen::MatrixXd&);
 
   private:
     Eigen::MatrixXd m_kerK;
@@ -54,5 +55,7 @@ class StiffnessMatrix
 //
   void m_dbg_printStiffnessMatrix(const SpMat&,std::string="");
   void m_dbg_printStiffnessMatrixSingularValues();
+  PRECONDITIONER_TYPE m_preconditionerType;
+  void _SetDirichletPrecond();
 
 };

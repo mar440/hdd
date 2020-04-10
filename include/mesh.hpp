@@ -16,7 +16,7 @@ class Mesh
     Mesh();
     ~Mesh();
     void print();
-    int generateMesh(int ne, int ns, int nl);
+    int generateMesh(int ne[], int ns[], int nl);
     vtkUnstructuredGrid* squareMesh(double,double,double=0, double=0);
     void writeMesh(vtkUnstructuredGrid *vtkVolumeMesh,
         std::string filename, bool asciiOrBinaryVtu);

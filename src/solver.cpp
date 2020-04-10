@@ -47,7 +47,7 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
 
     K.solve(rhs_primal,xx);
 
-    auto  p_opB = data.GetInterfaceOperatorB(); //mult(xx,d_rhs);
+    auto  p_opB = data.GetInterfaceOperatorB();
     auto  &R_kerK = *(K.GetKernel());
 
     p_opB->multB(xx, d_rhs);
@@ -90,7 +90,7 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
     p_opB->Scaling(Pg);
 
     p_opB->multBt(Pg,xx);
-    K.mult(xx,tmp);
+    K.Precond(xx,tmp);
     //tmp = xx;  
     p_opB->multB(tmp,z);
 
@@ -147,8 +147,7 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
       p_opB->Scaling(Pg);
 
       p_opB->multBt(Pg,xx);
-      K.mult(xx,tmp);
-      //tmp = xx;  
+      K.Precond(xx,tmp);
       p_opB->multB(tmp,z);
 
       p_opB->Scaling(z);

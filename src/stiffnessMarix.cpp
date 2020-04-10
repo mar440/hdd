@@ -21,6 +21,11 @@ StiffnessMatrix::StiffnessMatrix(
   m_myrank = my_rank;
   m_neq = m_pg2l->size();
   m_rhs.resize(0);
+  m_preconditionerType = LUMPED;
+
+  if (m_preconditionerType == DIRICHLET)
+    _SetDirichletPrecond();
+
 
 }
 
@@ -189,7 +194,29 @@ void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
 
 }
 
-void StiffnessMatrix::mult(const Eigen::MatrixXd& in, Eigen::MatrixXd& out )
+
+void StiffnessMatrix::Precond(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
+{
+  
+  if (in.rows() != m_spmatK.rows())
+    std::runtime_error(__FILE__);
+
+  if (m_preconditionerType == NONE)
+    out = in;
+  else if (m_preconditionerType == LUMPED)
+    out = m_spmatK * in;
+  else if (m_preconditionerType == DIRICHLET)
+  {
+
+  }
+  else
+    std::runtime_error("UNKNOWN PRECONDITIONER TYPE.");
+
+
+}
+
+
+void StiffnessMatrix::Mult(const Eigen::MatrixXd& in, Eigen::MatrixXd& out )
 {
   if (in.rows() != m_spmatK.rows())
     std::runtime_error(__FILE__);
@@ -640,6 +667,12 @@ void StiffnessMatrix::ApplyDirichletBC(SpMat& spmat, std::vector<int> dirInd){
   }
 }
 
+void StiffnessMatrix::_SetDirichletPrecond()
+{
+
+
+
+}
 
 
 // dbg##############################################

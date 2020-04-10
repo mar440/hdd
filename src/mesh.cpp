@@ -42,15 +42,17 @@ Mesh::~Mesh()
 
 
 
-int Mesh::generateMesh(int ne, int ns, int nl)
+int Mesh::generateMesh(int ne[], int ns[], int nl)
 {
 
 // number of elements in x, y direction per subdomain
-  m_nex = m_ney = ne;
+  m_nex = ne[0];
+  m_ney = ne[1];
 
 // number of subdomains in x, y direction per subdomain
 // multiplied by (2^levels)
-  m_nsx = m_nsy = ns * pow(2,nl);
+  m_nsx = ns[0] * pow(2,nl);
+  m_nsy = ns[1] * pow(2,nl);
 
   std::string fname = "test.vtu";
   m_mesh = vtkUnstructuredGrid::New();
