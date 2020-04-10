@@ -222,7 +222,7 @@ void Element2D::assembly_elasticity(MatrixXd& K, VectorXd &f, vtkCell* cell, dou
   Vector3d volF;
 
   volF(0) = 0; 
-  volF(1) = 9.81;
+  volF(1) = -9.81;
 
   GaussPoints(m_numberOfGaussPoints, r_GP, s_GP, t_GP, weights);
   double x_rs, y_rs, dxdr, dxds, dydr, dyds;

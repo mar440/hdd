@@ -20,8 +20,8 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
 {
 //      clock_t begin = clock();
 
-    double eps_iter = 1.0e-4; //atof(options2["eps_iter"].c_str());
-    double max_iter = 100; //atoi(options2["max_iter"].c_str());
+    double eps_iter = 1.0e-5; //atof(options2["eps_iter"].c_str());
+    double max_iter = 250; //atoi(options2["max_iter"].c_str());
 
     //double gPz, gPz_prev, wFw, rho, gamma, norm_gPz0;
     double gPz_prev, wFw, rho, gamma, norm_gPz0;
