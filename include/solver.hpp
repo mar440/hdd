@@ -1,5 +1,4 @@
 #pragma once
-#include "mesh.hpp"
 #include "directSolver.hpp"
 #include <Eigen/Dense>
 
