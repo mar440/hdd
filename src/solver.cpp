@@ -4,7 +4,6 @@
 #include "../include/domain.hpp"
 #include <iostream>
 #include "../include/stiffnessMatrix.hpp"
-//#include <Eigen/PardisoSupport>
 
 
 using namespace std;
@@ -23,8 +22,8 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
     double eps_iter = 1.0e-5; //atof(options2["eps_iter"].c_str());
     double max_iter = 250; //atoi(options2["max_iter"].c_str());
 
-    //double gPz, gPz_prev, wFw, rho, gamma, norm_gPz0;
-    double gPz_prev, wFw, rho, gamma, norm_gPz0;
+    //double gPz, wFw, rho, gamma, norm_gPz0;
+    double rho, gamma, norm_gPz0;
 
     Eigen::MatrixXd gtPz, gtPz_prev;
 
@@ -37,10 +36,6 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
     Eigen::MatrixXd xx;
     Eigen::MatrixXd yy;
     Eigen::MatrixXd invGtG_e;
-
-//    int nSubClst = cluster.get_nSubClst();
-//    xx.resize(nSubClst);
-//    yy.resize(nSubClst);
 
 
 
@@ -58,53 +53,35 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
 
 
 
-
-    // TEST ===============================================
-    //Eigen::MatrixXd v1(domain.GetNumberOfPrimalDOFs(),3);
-    //v1.setOnes();
-    //Eigen::MatrixXd jumps;
-
-    //p_opB->multB(v1, jumps);
-    //std::cout <<"jumps: " <<  jumps << '\n';
-    // TEST ===============================================
-
-
     // !!! e_loc = -Rt*f as well as G = -Rt * Bt
     e_loc = (-1) * R_kerK.transpose() * rhs_primal;
 
-    std::cout << "e_loc = \n" << e_loc << '\n';
 
     p_opB->mult_invGtG(e_loc,invGtG_e);
     Eigen::MatrixXd RinvGtG_e = R_kerK * invGtG_e;
     p_opB->multB(RinvGtG_e,lambda);
     lambda *= -1;
 
-//    std::cout << "lambda = \n" << lambda << '\n';
 
 
     Eigen::MatrixXd Bt_lambda0;
     p_opB->multBt(lambda,Bt_lambda0);
     Eigen::MatrixXd Gt_lambda0 = (-1) * R_kerK.transpose() * Bt_lambda0;
 
+#if DBG > 3
     std::cout << "Gt_lambda0 = \n" << Gt_lambda0 << '\n'; 
-
     Eigen::MatrixXd del = Gt_lambda0 - e_loc;
     std::cout << "|| Gt*lambda0 - e ||  = \n" << del.norm() << '\n';
-
     MatrixXd Plambda0;
     p_opB->Projection(lambda,Plambda0);
     std::cout << "Plambda0 = \n" << Plambda0 << '\n';
+#endif
 
 
-    // lambda0 = G * inv(GtG) * e
-//    iGTG_e.mat_mult_dense(cluster.invGfTGf,"N",e,"N");
-//    cluster.mult_Gf(iGTG_e, lambda);
-
-
+    // initial gradient (residual)
     // g0 = F * lambda - d_rhs
     p_opB->mult_F(lambda,g0);
     g0 -= d_rhs;
-
     g = g0;
 
     // Pg0
@@ -191,71 +168,19 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
     p_opB->mult_F(lambda,Fl);
     dFl = d_rhs - Fl;
 
-
     Eigen::MatrixXd BtdFl, GtdFl;
     p_opB->multBt(dFl,BtdFl);
     GtdFl= (-1) * R_kerK.transpose() * BtdFl;
 
     p_opB->mult_invGtG(GtdFl,alpha);
-    
-    
-    Eigen::MatrixXd uII;
 
-    uII = R_kerK * alpha;
+    Eigen::MatrixXd uII = R_kerK * alpha;
 
-    Eigen::MatrixXd u = uI + uII;
-
-
-    solution = u.col(0);
+    solution = uI.col(0) + uII.col(0);
 
 
 
-    
-#if 0
-//    clock_t end = clock();
-//    time_solver = double(end - begin) / CLOCKS_PER_SEC;
-
-
-    // final solution (last parameter -1 avoids numbering of vtk file)
-//    printf("Solver time:  %3.1f s.\n",time_solver);
-//    printf("Total time:   %3.1f s.\n",time_total);
-
- //   cluster.printVTK(yy, xx, lambda, alpha, -1);
-#endif
 
 }
 
-
-//Solver::Solver(Mesh* mesh,Data* data)
-//{
-//  std::vector<int> dirDOFs = mesh->getDirDOFs();
-//
-//  //  for (auto& id : dirDOFs) cout << id << endl;
-//
-//  SpMat& K = data->getK();
-//  //data->printMatrix(K,"K0.txt"); 
-//  data->setDirichlet(K, dirDOFs);
-//  //data->printMatrix(K,"K1.txt"); 
-//
-//
-//  Eigen::VectorXd& rhs = data->getRHS();
-//
-//
-//  double sum(0);
-//  for (int dof = 0; dof < rhs.size(); dof++)
-//    sum += rhs(dof);
-//  cout << "sum(rhs) = " << sum - 9.81 << endl;
-//
-//
-//  data->setDirichlet(rhs, dirDOFs);
-//
-//  m_directSolver.sym_factor(K);
-//  m_directSolver.num_factor();
-//
-//
-//  Eigen::VectorXd solution(rhs.size());
-//
-//  m_directSolver.solve(rhs,solution);
-//  mesh->addSolution(solution);
-//}
 
