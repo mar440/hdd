@@ -13,8 +13,8 @@
 
 InterfaceOperatorB::InterfaceOperatorB(Domain* p_dom)
 {
-  m_p_domain = p_dom;
 
+  m_p_domain = p_dom;
   m_listOfNeighbours.resize(0);
   m_listOfNeighboursColumPtr.resize(0);
   m_spmatGtG.resize(0,0);
@@ -22,17 +22,12 @@ InterfaceOperatorB::InterfaceOperatorB(Domain* p_dom)
   m_root = 0;
   m_cumulativeDefectPerSubdomains.resize(0);
   m_numberOfNeighboursRoot.resize(0);
-  m_GtG_rows = 0;
+  m_GtG_dim = 0;
   m_dbufToSend.resize(0,0);
   m_dbufToRecv.resize(0,0);
+  m_scaling.resize(0);
+  _SetScaling();
 
-
-//  std::cout << "my rank is: " << _dom->GetRank() << std::endl;
-//  std::cout << " and my interfaces ranks are: " << std::endl;
-//  for (auto& ii : interfaces)
-//  {
-//    std::cout<<  " " << ii.GetNeighbRank() << std::endl;
-//  }
 }
 
 
@@ -51,6 +46,10 @@ void InterfaceOperatorB::multBt(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 
   for (auto& iItf : interfaces)
   {
+    ////////////////////////////////////////////////////
+    // CONVENTION: subdomain with higher rank has
+    // operator B (or G) with negative coefficients (-1)
+    ////////////////////////////////////////////////////
     double scale(1.0);
     if (m_p_domain->GetRank() > iItf.GetNeighbRank())
       scale *= -1;
@@ -60,7 +59,6 @@ void InterfaceOperatorB::multBt(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
       out.row(iItf.m_interfaceDOFs[row]) += scale * in.row(offset + row);
     offset += nDOFs;
   }
-
 }
 
 
@@ -78,6 +76,10 @@ void InterfaceOperatorB::multB(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 
   for (auto& iItf : interfaces)
   {
+    ////////////////////////////////////////////////////
+    // CONVENTION: subdomain with higher rank has
+    // operator B (or G) with negative coefficients (-1)
+    ////////////////////////////////////////////////////
     double scale(1.0);
     if (m_p_domain->GetRank() > iItf.GetNeighbRank())
       scale *= -1;
@@ -137,15 +139,19 @@ void InterfaceOperatorB::FetiCoarseSpace(
   m_p_defectPerSubdomains =  &defectPerSubdomains;
   _FetiCoarseSpaceAssembling();
 
-  m_pardisoSolver.analyzePattern(m_spmatGtG);
-  m_pardisoSolver.factorize(m_spmatGtG);
+  if (m_p_domain->GetRank()  == m_root)
+  {
+    m_pardisoSolver.analyzePattern(m_spmatGtG);
+    m_pardisoSolver.factorize(m_spmatGtG);
+  }
 
 }
 
 void InterfaceOperatorB::solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
 
-  out = m_pardisoSolver.solve(in);
+  if (m_p_domain->GetRank()  == m_root)
+    out = m_pardisoSolver.solve(in);
 
 }
 
@@ -179,6 +185,10 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
 
     Interface &iItf = interfaces[cntI];
 
+    ////////////////////////////////////////////////////
+    // CONVENTION: subdomain with higher rank has
+    // operator B (or G) with negative coefficients (-1)
+    ////////////////////////////////////////////////////
     double scale(1.0);
     if (m_p_domain->GetRank() > iItf.GetNeighbRank())
       scale *= -1;
@@ -412,18 +422,18 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     nnzGtG = (int)receivingBuffer.size();
 
     for (auto& ii : (*m_p_defectPerSubdomains))
-      m_GtG_rows += ii;
+      m_GtG_dim += ii;
   }
 
-  int tmpInt[] = {nnzGtG, m_GtG_rows};
+  int tmpInt[] = {nnzGtG, m_GtG_dim};
 
   m_p_domain->hmpi.BcastInt(&tmpInt,2,m_root);
 
   nnzGtG = tmpInt[0];
-  m_GtG_rows = tmpInt[1];
+  m_GtG_dim = tmpInt[1];
 
 
-  std::cout << "m_GtG_rows:   " << m_GtG_rows << '\n'; 
+  std::cout << "m_GtG_dim:    " << m_GtG_dim<< '\n'; 
   std::cout << "nnzGtG:       " << nnzGtG << '\n'; 
 
 
@@ -501,24 +511,32 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     }
   }
 
-  I_COO_GtG.resize(nnzGtG);
-  J_COO_GtG.resize(nnzGtG);
-  V_COO_GtG.resize(nnzGtG);
-//
-  m_p_domain->hmpi.BcastInt(I_COO_GtG.data(),nnzGtG,m_root);
-  m_p_domain->hmpi.BcastInt(J_COO_GtG.data(),nnzGtG,m_root);
-  m_p_domain->hmpi.BcastDbl(V_COO_GtG.data(),nnzGtG,m_root);
 
-  std::vector<T> trGtG(nnzGtG,T(0,0,0));
+  if (m_p_domain->GetRank()  == m_root)
+  {
 
-  for (int iG = 0; iG < nnzGtG; iG++)
-    trGtG[iG] = T(I_COO_GtG[iG],J_COO_GtG[iG],V_COO_GtG[iG]);
+//  prepared to distribute GtG all over the nodes
+//  //    I_COO_GtG.resize(nnzGtG);
+//  //    J_COO_GtG.resize(nnzGtG);
+//  //    V_COO_GtG.resize(nnzGtG);
+//  //
+//  //    m_p_domain->hmpi.BcastInt(I_COO_GtG.data(),nnzGtG,m_root);
+//  //    m_p_domain->hmpi.BcastInt(J_COO_GtG.data(),nnzGtG,m_root);
+//  //    m_p_domain->hmpi.BcastDbl(V_COO_GtG.data(),nnzGtG,m_root);
 
-  m_spmatGtG.resize(m_GtG_rows, m_GtG_rows);
-  m_spmatGtG.setFromTriplets(trGtG.begin(),trGtG.end());
-//
-  std::string fname = "GtG"; fname += std::to_string(m_p_domain->GetRank()) + ".txt";
-  tools::printMatrix(m_spmatGtG,fname);
+    std::vector<T> trGtG(nnzGtG,T(0,0,0));
+
+    for (int iG = 0; iG < nnzGtG; iG++)
+      trGtG[iG] = T(I_COO_GtG[iG],J_COO_GtG[iG],V_COO_GtG[iG]);
+
+    m_spmatGtG.resize(m_GtG_dim, m_GtG_dim);
+    m_spmatGtG.setFromTriplets(trGtG.begin(),trGtG.end());
+  //
+#if DBG > 3
+    std::string fname = "GtG"; fname += std::to_string(m_p_domain->GetRank()) + ".txt";
+    tools::printMatrix(m_spmatGtG,fname);
+#endif
+  }
 
 
 }
@@ -581,7 +599,7 @@ void InterfaceOperatorB::mult_invGtG(const Eigen::MatrixXd& in, Eigen::MatrixXd&
   {
 
 
-    Eigen::MatrixXd rhs_glb(m_GtG_rows,in_cols);
+    Eigen::MatrixXd rhs_glb(m_GtG_dim,in_cols);
 
     int offset(0);
     int cntAllElements(0);
@@ -618,22 +636,22 @@ void InterfaceOperatorB::Projection(const Eigen::MatrixXd& in, Eigen::MatrixXd& 
 {
 
   Eigen::MatrixXd Bt_in, Gt_in, invGtG_Gt_in, R_invGtG_Gt_in, G_invGtG_Gt_in;
+  auto &R = *(m_p_domain->GetStiffnessMatrix()->GetKernel());
 
   // 0) y0 = Bt * in
   multBt(in,Bt_in);
 
-  // 1) y1 = Rt * Bt * in = Gt * in
-  auto &R = *(m_p_domain->GetStiffnessMatrix()->GetKernel());
-  Gt_in =  R.transpose() * Bt_in;  Bt_in.resize(0,0); // (-1)  not multiplied  here
+  // 1) y1 = (-1) * Rt * Bt * in = Gt * in                          // not multiplied by (-1)
+    Gt_in =  R.transpose() * Bt_in;  Bt_in.resize(0,0);               // (-1)  not multiplied  here
 
   // 2) y2 = inv(GtG) * y1 = inv(GtG) * Gt * in
   mult_invGtG(Gt_in,invGtG_Gt_in);  Gt_in.resize(0,0);
 
   // 3) y3 = R * y2 = R * inv(GtG) * Gt * in 
-  R_invGtG_Gt_in =  R * invGtG_Gt_in;  invGtG_Gt_in.resize(0,0);  // (-1)  not multiplied  here
+  R_invGtG_Gt_in =  R * invGtG_Gt_in;  invGtG_Gt_in.resize(0,0);    // (-1)  not multiplied  here
 
-  // 4) y4 = B * R * y2 = G * inv(GtG) * Gt * in 
-  multB(R_invGtG_Gt_in,G_invGtG_Gt_in); R_invGtG_Gt_in.resize(0,0);      // (-1) not multiplied here
+  // 4) y4 = (-1) * B * R * y2 = G * inv(GtG) * Gt * in   // not multiplied by (-1)
+  multB(R_invGtG_Gt_in,G_invGtG_Gt_in); R_invGtG_Gt_in.resize(0,0); // (-1) not multiplied here
 
   // out = (I - G * inv(GtG) * Gt) * in  
   out = in - G_invGtG_Gt_in;
@@ -646,12 +664,64 @@ void InterfaceOperatorB::mult_F(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
 
   Eigen::MatrixXd Bt_in, Kplus_Bt_in;
-  
+
   auto *Kplus = m_p_domain->GetStiffnessMatrix();
 
   multBt(in, Bt_in);
   Kplus->solve(Bt_in,Kplus_Bt_in);   Bt_in.resize(0,0);
   multB(Kplus_Bt_in, out);  Kplus_Bt_in.resize(0,0);
+
+}
+
+void InterfaceOperatorB::_SetScaling()
+{
+
+
+#if DBG > 1
+  std::cout << " --- scaling --- \n";
+#endif
+
+  auto interfaces = m_p_domain->GetInterfaces();
+
+  int offset = 0;
+  m_scaling.resize(m_p_domain->GetNumberOfDualDOFs(),0);
+
+  for (auto& iItf : interfaces)
+  {
+    int nDOFs = (int) iItf.m_interfaceDOFs.size();
+    for (int row = 0; row < nDOFs;row++)
+    {
+      m_scaling[row + offset] = (*m_p_domain->GetMultiplicity())[iItf.m_interfaceDOFs[row]];
+    }
+    offset += nDOFs;
+  }
+
+
+#if DBG > 1
+  std::cout << " --- start --- \n";
+  for (auto& ii : m_scaling)
+    std::cout << ii << ' ';
+  std::cout << '\n';
+#endif
+
+}
+
+
+
+void InterfaceOperatorB::Scaling(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
+{
+  out.resize(in.rows(),in.cols());
+
+  for (int row = 0; row < in.rows(); row++)
+    out.row(row) = in.row(row) / m_scaling[row];
+
+}
+
+void InterfaceOperatorB::Scaling(Eigen::MatrixXd& inout)
+{
+
+  for (int row = 0; row < inout.rows(); row++)
+    inout.row(row) /=  m_scaling[row];
 
 }
 

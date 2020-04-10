@@ -34,8 +34,9 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
     Eigen::MatrixXd wtFw;
 
     Eigen::MatrixXd xx;
-    Eigen::MatrixXd yy;
+    Eigen::MatrixXd tmp;
     Eigen::MatrixXd invGtG_e;
+
 
 
 
@@ -84,10 +85,18 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
     g0 -= d_rhs;
     g = g0;
 
-    // Pg0
+
     p_opB->Projection(g,Pg);
-    z = Pg;  //    cluster.Preconditioning(Pg,z);
-    Pz = z;  //    cluster.Projection(z,Pz,beta);
+    p_opB->Scaling(Pg);
+
+    p_opB->multBt(Pg,xx);
+    K.mult(xx,tmp);
+    //tmp = xx;  
+    p_opB->multB(tmp,z);
+
+    p_opB->Scaling(z);
+    p_opB->Projection(z,Pz);
+
 
     gtPz = g.transpose()*Pz;
     domain.hmpi.GlobalSum(gtPz.data(),gtPz.size());
@@ -121,7 +130,7 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
       if (domain.GetRank() == 0)
         printf("%4d\t%3.9e \n",it + 1, sqrt(gtPz(0,0)) / norm_gPz0);
 
-      if (sqrt(gtPz(0,0)) < eps_iter * norm_gPz0)
+      if (sqrt(gtPz(0,0)) < eps_iter * norm_gPz0 || norm_gPz0 == 0)
         break;
 
       p_opB->mult_F(w,Fw);
@@ -135,8 +144,15 @@ void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
       g += Fw * rho;
 
       p_opB->Projection(g,Pg);
-      z = Pg;//cluster.Preconditioning(Pg,z);
-      Pz = z;//cluster.Projection(z,Pz,beta);
+      p_opB->Scaling(Pg);
+
+      p_opB->multBt(Pg,xx);
+      K.mult(xx,tmp);
+      //tmp = xx;  
+      p_opB->multB(tmp,z);
+
+      p_opB->Scaling(z);
+      p_opB->Projection(z,Pz);
 
       gtPz_prev = gtPz;
       gtPz = g.transpose() * Pz;

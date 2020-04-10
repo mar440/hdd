@@ -19,8 +19,8 @@
 
 enum TYPE_OF_ELEMENTS {LINEAR, QUADRATIC};
 
-//TYPE_OF_ELEMENTS TypeOfElements = LINEAR;
-TYPE_OF_ELEMENTS TypeOfElements = QUADRATIC;
+TYPE_OF_ELEMENTS TypeOfElements = LINEAR;
+//TYPE_OF_ELEMENTS TypeOfElements = QUADRATIC;
 
 using namespace std;
 

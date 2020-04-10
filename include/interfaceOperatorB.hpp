@@ -25,6 +25,8 @@ class InterfaceOperatorB
     void mult_invGtG(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void Projection(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void mult_F(const Eigen::MatrixXd&, Eigen::MatrixXd&);
+    void Scaling(const Eigen::MatrixXd&, Eigen::MatrixXd&);
+    void Scaling(Eigen::MatrixXd&);
   private:
 
     Domain* m_p_domain;
@@ -49,11 +51,16 @@ class InterfaceOperatorB
         Eigen::Ref<Eigen::MatrixXd> _GtG,
         int& tripletOffset, int rowOffset, int colOffset);
     SpMat m_spmatGtG;
-    int m_GtG_rows;
+    int m_GtG_dim;
 
     std::vector<int> m_cumulativeDefectPerSubdomains;
     std::vector<int> m_numberOfNeighboursRoot;
 
 
     Eigen::PardisoLU<SpMat> m_pardisoSolver;
+
+    void _SetScaling();
+
+    std::vector<double> m_scaling;
+
 };

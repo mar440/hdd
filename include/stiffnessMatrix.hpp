@@ -27,6 +27,7 @@ class StiffnessMatrix
     int GetDefect(){return m_kerK.cols();}
     void ApplyDirichletBC(SpMat& spmat, std::vector<int> dirInd);
     const Eigen::VectorXd& GetRHS()const {return  m_rhs;};
+    void mult(const Eigen::MatrixXd&, Eigen::MatrixXd&);
 
   private:
     Eigen::MatrixXd m_kerK;
@@ -44,7 +45,7 @@ class StiffnessMatrix
 
     int m_neq;
 
-    Eigen::MatrixXd GetKernelFromK(const SpMat& K);
+    Eigen::MatrixXd _GetKernelFromK(const SpMat& K);
 
     void m_FactorizeLinearOperator(std::vector<int> = std::vector<int>(0));
     std::vector<int> GetNullPivots(const Eigen::MatrixXd &);

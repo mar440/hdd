@@ -39,6 +39,7 @@ class Domain
     StiffnessMatrix* GetStiffnessMatrix(){return m_p_stiffnessMatrix;}
     void SetDirichletDOFs(std::vector<int>& glbDirDOFs);
     const std::vector<int>&  GetDirichletDOFs()const{return m_DirichletDOFs;}
+    std::vector<double>* GetMultiplicity(){return &m_multiplicity;}
 
 
 //    void SetMatrixG();
@@ -71,7 +72,7 @@ class Domain
 
     // for interface operator
     std::vector<Interface> m_interfaces;
-    std::vector<int> m_multiplicity;
+    std::vector<double> m_multiplicity;
 
     // dbg ---------------------------- 
     void m_dbg_printNeighboursRanks();

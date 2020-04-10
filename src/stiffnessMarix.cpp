@@ -156,7 +156,7 @@ void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
 
 
   // build-in factorization based on PARDISO
-  m_kerK = GetKernelFromK(m_spmatK);
+  m_kerK = _GetKernelFromK(m_spmatK);
   m_nullPivots = GetNullPivots(m_kerK);
   m_FactorizeLinearOperator(m_nullPivots);
 
@@ -182,15 +182,22 @@ void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
   
 
 
-#if DBG>2
+#if DBG>3
   m_dbg_printStiffnessMatrix(m_spmatK);
-
-
 #endif
 
 
 }
 
+void StiffnessMatrix::mult(const Eigen::MatrixXd& in, Eigen::MatrixXd& out )
+{
+  if (in.rows() != m_spmatK.rows())
+    std::runtime_error(__FILE__);
+
+  out = m_spmatK * in;
+
+
+}
 
 void StiffnessMatrix::solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
@@ -200,7 +207,7 @@ void StiffnessMatrix::solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 
 
 
-Eigen::MatrixXd StiffnessMatrix::GetKernelFromK(const SpMat& K)
+Eigen::MatrixXd StiffnessMatrix::_GetKernelFromK(const SpMat& K)
 {
 
 //

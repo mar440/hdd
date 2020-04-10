@@ -199,7 +199,7 @@ void Domain::SetInterfaces()
   }
 
   for (auto& im :  m_multiplicity)
-    im = (im - 1) * im * 0.5;
+    im = sqrt(im);//(im - 1) * im * 0.5;
 #if DBG > 2
   for (auto& im :  m_multiplicity)
     std::cout << im << ' ';
