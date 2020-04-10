@@ -16,12 +16,12 @@ Solver::Solver()
 
 
 
-void Solver::pcpg(Data& data)
+void Solver::pcpg(Data& data, Eigen::VectorXd& solution)
 {
 //      clock_t begin = clock();
 
     double eps_iter = 1.0e-4; //atof(options2["eps_iter"].c_str());
-    double max_iter = 50; //atoi(options2["max_iter"].c_str());
+    double max_iter = 100; //atoi(options2["max_iter"].c_str());
 
     //double gPz, gPz_prev, wFw, rho, gamma, norm_gPz0;
     double gPz_prev, wFw, rho, gamma, norm_gPz0;
@@ -177,11 +177,38 @@ void Solver::pcpg(Data& data)
     }
 
 
-//    Eigen::MatrixXd  BtLambda;
-//    p_opB->multBt(lambda,BtLambda);
-//    
-//
-//    lambda;
+    Eigen::MatrixXd  Btl, Fl, dFl;
+    p_opB->multBt(lambda,Btl);
+
+    Eigen::MatrixXd f_Btl = rhs_primal - Btl;
+
+    Eigen::MatrixXd uI;
+
+    K.solve(f_Btl,uI);
+
+
+    // g0 = F * lambda - d_rhs
+    p_opB->mult_F(lambda,Fl);
+    dFl = d_rhs - Fl;
+
+
+    Eigen::MatrixXd BtdFl, GtdFl;
+    p_opB->multBt(dFl,BtdFl);
+    GtdFl= (-1) * R_kerK.transpose() * BtdFl;
+
+    p_opB->mult_invGtG(GtdFl,alpha);
+    
+    
+    Eigen::MatrixXd uII;
+
+    uII = R_kerK * alpha;
+
+    Eigen::MatrixXd u = uI + uII;
+
+
+    solution = u.col(0);
+
+
 
     
 #if 0

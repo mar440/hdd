@@ -41,7 +41,7 @@ int main(int argc, char **argv)
   Mesh mesh;
   {
     // global mesh
-    int n_elements = 10;
+    int n_elements = 15;
     int n_subdomains = 8;
     int n_levels = 0;
     // build-in generator
@@ -50,11 +50,7 @@ int main(int argc, char **argv)
   cout << "after mesh \n";
 
 // decomposition
-  {
-    mesh.extractSubdomainMesh();
-    std::string fnameVtk = "mesh_" + std::to_string(rank) + ".vtu";
-    mesh.writeMesh(mesh.getSubdomainMesh(), fnameVtk, true);
-  }
+  mesh.extractSubdomainMesh();
 
 //## HDD ##  
 //# initialize library (copy mpi_comm)
@@ -162,7 +158,19 @@ int main(int argc, char **argv)
 
   Solver solver;
 
-  solver.pcpg(dataH);
+  Eigen::VectorXd solution;
+  solver.pcpg(dataH, solution);
+
+
+
+  mesh.addSolution(mesh.getSubdomainMesh(),solution);
+
+  {
+    std::string fnameVtk = "mesh_" + std::to_string(rank) + ".vtu";
+    mesh.writeMesh(mesh.getSubdomainMesh(), fnameVtk, true);
+  }
+
+
 
 //  std::string fnameVtk = "mesh_" + std::to_string(rank) + ".vtu";
 //  mesh.writeMesh(mesh.getSubdomainMesh(), fnameVtk, true);

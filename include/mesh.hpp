@@ -23,6 +23,7 @@ class Mesh
 
     std::vector<int>& getDirDOFs(){return m_DirichletDofs;}
     void addSolution(Eigen::VectorXd& solution);
+    void addSolution(vtkUnstructuredGrid* ug, Eigen::VectorXd& solution);
     std::vector<int> getNeighboursRanks();
 
 

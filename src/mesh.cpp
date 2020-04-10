@@ -55,7 +55,7 @@ int Mesh::generateMesh(int ne, int ns, int nl)
   std::string fname = "test.vtu";
   m_mesh = vtkUnstructuredGrid::New();
   // vtkSmartPointer<vtkUnstructuredGrid>::New();
-  double Lx(2), Ly(2), x0(-1), y0(-1);
+  double Lx(3), Ly(1), x0(-1), y0(-1);
 
   m_mesh = squareMesh(Lx,Ly, x0, y0);
 
@@ -95,9 +95,9 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, double x0, doubl
       _y = j * dy2D + y0;
       points->InsertNextPoint(_x, _y, 0);
 
-      if (j == 0)
+      if (i == 0)
         nodesOnBottom.push_back(nPoints_ctrl);
-      if (j == ney2D)
+      if (i == nex2D)
         nodesOnTop.push_back(nPoints_ctrl);
 
       nPoints_ctrl++;
@@ -117,9 +117,9 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, double x0, doubl
         _y = j * dy2D * 0.5 + y0;
         points->InsertNextPoint(_x, _y, 0);
 
-        if (j == 0)
+        if (i == 0)
           nodesOnBottom.push_back(nPoints_ctrl);
-        if (j == 2 * ney2D)
+        if (i == 2 * nex2D)
           nodesOnTop.push_back(nPoints_ctrl);
 
         nPoints_ctrl++;
@@ -267,6 +267,27 @@ void Mesh::addSolution(Eigen::VectorXd& solutionXd)
   m_mesh->GetPointData()->AddArray(solutionE);
 }
 
+void Mesh::addSolution(
+    vtkUnstructuredGrid* ug, Eigen::VectorXd& solutionXd)
+{
+
+  int nP = (int) ug->GetNumberOfPoints();
+
+  if (solutionXd.size() != nP * 2)
+    std::runtime_error("dimension problem");
+
+  vtkSmartPointer<vtkDoubleArray> 
+    solutionE = vtkSmartPointer<vtkDoubleArray>::New();
+  solutionE->SetName(DISPLACEMENT);
+  solutionE->SetNumberOfComponents(3);
+  solutionE->SetNumberOfTuples(nP);
+  for (auto i = 0; i < ug->GetNumberOfPoints(); i++) {
+    solutionE->SetTuple3(i, 
+        solutionXd(2 * i + 0), solutionXd(2 * i + 1), 0);
+
+  }
+  ug->GetPointData()->AddArray(solutionE);
+}
 
 
 

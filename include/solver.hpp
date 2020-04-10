@@ -1,6 +1,7 @@
 #pragma once
 #include "mesh.hpp"
 #include "directSolver.hpp"
+#include <Eigen/Dense>
 
 
 class Data;
@@ -10,7 +11,7 @@ class Solver
   public:
     Solver();
     ~Solver(){}
-    void pcpg(Data&);
+    void pcpg(Data&, Eigen::VectorXd&);
   private:
 //    DirectSolver m_directSolver;
 //    Data* m_p_data;
