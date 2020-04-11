@@ -21,10 +21,16 @@ StiffnessMatrix::StiffnessMatrix(
   m_myrank = my_rank;
   m_neq = m_pg2l->size();
   m_rhs.resize(0);
-  m_preconditionerType = LUMPED;
+  //m_preconditionerType = LUMPED;
+  m_preconditionerType = DIRICHLET;
 
-  if (m_preconditionerType == DIRICHLET)
-    _SetDirichletPrecond();
+  m_K_IB.resize(0,0);
+  m_K_BI.resize(0,0);
+  m_K_BB.resize(0,0);
+
+  //m_preconditionerType = NONE;
+
+//    SetDirichletPrecond();
 
 
 }
@@ -66,12 +72,12 @@ void StiffnessMatrix::AddElementContribution(std::vector<int>& glbIds,
           T(rowLocal, (*m_pg2l)[glbIds[col]],
             valLocK[row + neqLocal * col]));
     }
-#if DBG > 0
+#if DBG > 3
     std::cout << (*m_pg2l)[glbIds[row]] << ' ';
 //  m_pcomm =  _pcomm;
 #endif
   }
-#if DBG > 0
+#if DBG > 3
   std::cout << '\n';
 #endif
 
@@ -207,6 +213,19 @@ void StiffnessMatrix::Precond(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
     out = m_spmatK * in;
   else if (m_preconditionerType == DIRICHLET)
   {
+    Eigen::MatrixXd inB(m_B_DOFs.size(),in.cols());
+
+    for (int dof = 0; dof < (int) m_B_DOFs.size(); dof++)
+      inB.row(dof) = in.row(m_B_DOFs[dof]);
+
+    Eigen::MatrixXd outB = m_K_BB * inB;
+    Eigen::MatrixXd rhsB  = m_K_IB * inB;
+    outB -= m_K_BI * (m_pardisoSolverDirichlet_KII.solve(rhsB));
+
+    out.resize(in.rows(), in.cols()); out.setZero();
+
+    for (int dof = 0; dof < (int) m_B_DOFs.size(); dof++)
+      out.row(m_B_DOFs[dof]) = outB.row(dof);
 
   }
   else
@@ -268,12 +287,12 @@ typedef int  eslocal;
 //BOOL USE_NULL_PIVOTS_OR_S_SET                         = TRUE;
   bool use_null_pivots_or_s_set                         = true;
 
-//    4) diagonalRegularization
-//  regularization only on diagonal elements (big advantage: patern of K and K_regular is the same !!!)
-//  size of set 's' = defect(K)
-//  It's is active, only if and only if 'use_null_pivots_or_s_set = true'
-//BOOL DIAGONALREGULARIZATION                           = TRUE;
-  bool diagonalRegularization                           = true;
+////    4) diagonalRegularization
+////  regularization only on diagonal elements (big advantage: patern of K and K_regular is the same !!!)
+////  size of set 's' = defect(K)
+////  It's is active, only if and only if 'use_null_pivots_or_s_set = true'
+////BOOL DIAGONALREGULARIZATION                           = TRUE;
+//  bool diagonalRegularization                           = true;
 
 
 //    6) get_n_first_and_n_last_eigenvals_from_dense_S
@@ -332,7 +351,7 @@ typedef int  eslocal;
 
   int K_rows = K.rows();
 
-  if (!use_null_pivots_or_s_set) diagonalRegularization=false;
+//  if (!use_null_pivots_or_s_set) diagonalRegularization=false;
 
 
   //TODO if K.rows<=sc_size, use directly input K instead of S
@@ -353,10 +372,10 @@ typedef int  eslocal;
 
 
   eslocal const nonsing_size = K_rows - sc_size - i_start;
-  eslocal j_start = nonsing_size;
   SEQ_VECTOR <eslocal > permVec;
 
 #if DBG>2
+  eslocal j_start = nonsing_size;
   std::cout << "nonsing_size = " << nonsing_size << std::endl;
   std::cout << "j_start      = " << j_start << std::endl;
 #endif
@@ -446,27 +465,25 @@ typedef int  eslocal;
 
 
 
-  Eigen::PermutationMatrix<Eigen::Dynamic,Eigen::Dynamic> P(K_rows);
 
+  SpMat K_modif;
 
+  Eigen::Map<Eigen::VectorXi> perm_vec(permVec.data(),permVec.size());
+  K_modif = m_spmatK.twistedBy(perm_vec.asPermutation().inverse());
 
+  std::vector<T> trScaleMat(K_rows,T(0,0,0));
+  double d_i(0);
   for (int dof = 0; dof < K_rows; dof++)
-    P.indices()[permVec[dof]] = dof;
-
-
-  SpMat K_modif = K;
-  K_modif = K_modif.twistedBy(P);
-  Eigen::VectorXd scaleMat = Eigen::VectorXd::Ones(K_rows);
-
-  if (diagonalScaling)
   {
-    auto diagK = K_modif.diagonal();
-    for (int dof=0;dof < K_rows ;dof++)
-      scaleMat(dof) /=  sqrt(diagK(dof));
+    d_i = 0;
+    if (diagonalScaling) d_i = 1.0 / sqrt(K_modif.coeff(dof,dof));
+    trScaleMat[dof] = T(dof,dof,d_i);
   }
 
+  SpMat ScaleMatrix(K_rows,K_rows);
+  ScaleMatrix.setFromTriplets(trScaleMat.begin(),trScaleMat.end());
 
-  K_modif = scaleMat.asDiagonal() * K_modif * scaleMat.asDiagonal();
+  K_modif = ScaleMatrix * K_modif * ScaleMatrix;
 
 
 
@@ -540,10 +557,11 @@ typedef int  eslocal;
   for (eslocal j = 0; j < kerK.cols(); j++)
   {
     for (eslocal i = 0; i < R_r_rows; i++){
-      kerK(permVec[i],j) = R_r(i,j) * scaleMat(i);
+      kerK(permVec[i],j) = R_r(i,j) * ScaleMatrix.coeff(i,i);
     }
     for (eslocal i = 0; i < R_s.rows(); i++){
-      kerK(permVec[i+R_r_rows],j) =-R_s(i,j)*scaleMat[i+R_r_rows];
+      kerK(permVec[i+R_r_rows],j) = 
+        (-1) * R_s(i,j) * ScaleMatrix.coeff(i+R_r_rows,i+R_r_rows);
     }
   }
 
@@ -561,10 +579,10 @@ typedef int  eslocal;
   // Is internally Q.cols() == defect_K_in ???
   Eigen::MatrixXd Q =
     qr.matrixQ() * Eigen::MatrixXd::Identity(kerK.rows(), kerK.cols());
-  auto col_rank = qr.rank();
 
 
 #if DBG > 2
+  auto col_rank = qr.rank();
   std::cout << "Q.dim = " <<  Q.rows() << ' ' << Q.cols() << '\n';
   std::cout << "rank = " << col_rank << '\n';
   auto KQ = K * Q;
@@ -667,8 +685,54 @@ void StiffnessMatrix::ApplyDirichletBC(SpMat& spmat, std::vector<int> dirInd){
   }
 }
 
-void StiffnessMatrix::_SetDirichletPrecond()
+void StiffnessMatrix::SetDirichletPrecond(
+    std::vector<int>& I_DOFs, std::vector<int>& B_DOFs)
 {
+
+
+  if (m_preconditionerType!= DIRICHLET) return;
+
+  m_B_DOFs = B_DOFs;
+
+  SpMat Kcopy = m_spmatK;
+  int K_rows = Kcopy.rows();
+
+//  Eigen::PermutationMatrix<Eigen::Dynamic,Eigen::Dynamic> P(K_rows);
+
+  // out_mat = mat.twistedBy( perm_vec.asPermutation().inverse() );
+
+  Eigen::VectorXi perm_vec(K_rows);
+
+  int cnt(0);
+  for (auto& ii : I_DOFs) perm_vec(cnt++) = ii;
+  for (auto& ii : B_DOFs) perm_vec(cnt++) = ii;
+
+  Kcopy = m_spmatK.twistedBy(perm_vec.asPermutation().inverse());
+
+  int nI = (int) I_DOFs.size();
+  int nB = (int) B_DOFs.size();
+  
+
+
+  SpMat K_II = Kcopy.block(0,0,nI,nI);
+  m_K_IB = Kcopy.block(0,nI,nI,nB);
+  m_K_BI = Kcopy.block(nI,0,nB,nI);
+  m_K_BB = Kcopy.block(nI,nI,nB,nB);
+
+
+  m_pardisoSolverDirichlet_KII.analyzePattern(K_II);
+  m_pardisoSolverDirichlet_KII.factorize(K_II);
+
+#if DBG > 4
+  m_dbg_printStiffnessMatrix(K_II,"K_II");
+  m_dbg_printStiffnessMatrix(m_K_IB,"K_IB");
+  m_dbg_printStiffnessMatrix(m_K_BI,"K_BI");
+  m_dbg_printStiffnessMatrix(m_K_BB,"K_BB");
+  m_dbg_printStiffnessMatrix(m_spmatK,"m_spmatK");
+  m_dbg_printStiffnessMatrix(Kcopy,"Kcopy");
+#endif
+
+
 
 
 

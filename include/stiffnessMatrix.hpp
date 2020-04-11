@@ -8,7 +8,6 @@
 #include <Eigen/PardisoSupport>
 
 
-
 class StiffnessMatrix
 {
 
@@ -29,6 +28,8 @@ class StiffnessMatrix
     const Eigen::VectorXd& GetRHS()const {return  m_rhs;};
     void Mult(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void Precond(const Eigen::MatrixXd&, Eigen::MatrixXd&);
+    void SetDirichletPrecond(std::vector<int>& I_DOFs, 
+        std::vector<int>& B_DOFs);
 
   private:
     Eigen::MatrixXd m_kerK;
@@ -56,6 +57,10 @@ class StiffnessMatrix
   void m_dbg_printStiffnessMatrix(const SpMat&,std::string="");
   void m_dbg_printStiffnessMatrixSingularValues();
   PRECONDITIONER_TYPE m_preconditionerType;
-  void _SetDirichletPrecond();
+
+  //DIRICHLET PRECONDITIONER
+  SpMat m_K_IB, m_K_BI, m_K_BB;
+  std::vector<int> m_B_DOFs;
+  Eigen::PardisoLU <SpMat> m_pardisoSolverDirichlet_KII;
 
 };
