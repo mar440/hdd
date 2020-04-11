@@ -250,23 +250,29 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   std::vector<int> numberOfNeighboursRoot(0);
   if (m_p_domain->GetRank() == 0)
       numberOfNeighboursRoot.resize(m_p_domain->GetNumberOfSubdomains(),-1);
+#if DBG > 2
   std::cout << "numberOfNeighboursRoot: << "  << numberOfNeighboursRoot.size() << '\n';
+#endif
 
   m_p_domain->hmpi.GatherInt(&numberOfInterfacesPerRank, 1,
                numberOfNeighboursRoot.data(), 1 ,m_root);
 
 
+#if DBG > 2
   if (m_p_domain->GetRank() == 0)
-  for (auto& ii : numberOfNeighboursRoot) std::cout << ii << ' ';
+    for (auto& ii : numberOfNeighboursRoot) std::cout << ii << ' ';
   std::cout << '\n';
+#endif
 
   int sumOfInterfacesGlobal(0);
   m_p_domain->hmpi.ReduceInt(&numberOfInterfacesPerRank,&sumOfInterfacesGlobal,
       1, MPI_SUM, m_root);
 
+#if DBG > 2
   std::cout <<  "numberOfInterfacesPerRank: " << numberOfInterfacesPerRank<< std::endl;
   if (m_p_domain->GetRank()  == m_root)
     std::cout <<  "sumOfInterfacesGlobal: " << sumOfInterfacesGlobal << std::endl;
+#endif
 
 
 
@@ -318,15 +324,19 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
 
   int sizeOfSendingBuffer = myDefect * myDefect;
 
-  int cntI(0);
-  for (auto& itf : interfaces){
+  for (auto& itf : interfaces)
+  {
     int tmp0 = (*m_p_defectPerSubdomains)[itf.GetNeighbRank()] * myDefect;
-    int tmp1 = GtG_local_offdiag[cntI++].size();
     sizeOfSendingBuffer += tmp0;
-    std::cout << "tmp0 & tmp1: " << tmp0 << ' ' << tmp1 << '\n';
+//  int cntI(0);
+//    int tmp1 = GtG_local_offdiag[cntI++].size();
+//    std::cout << "tmp0 & tmp1: " << tmp0 << ' ' << tmp1 << '\n';
   }
 
+
+#if DBG > 2
   std::cout << "sizeOfSendingBuffer: " << sizeOfSendingBuffer<< '\n';
+#endif
 
 
   std::vector<double> sendingBuffer(sizeOfSendingBuffer,0);
@@ -387,11 +397,10 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     receivingBuffer.resize(cntAllElements,-1);
   }
 
+#if DBG > 3
   std::cout << "receivingBuffer.size() = " << receivingBuffer.size() << '\n';
-
-
-
   std::cout << "sendingBuffer.size(): " << sendingBuffer.size() << '\n';
+#endif
 
   m_p_domain->hmpi.GathervDbl(
     sendingBuffer.data(), sendingBuffer.size(),
@@ -433,8 +442,10 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   m_GtG_dim = tmpInt[1];
 
 
+#if DBG > 2
   std::cout << "m_GtG_dim:    " << m_GtG_dim<< '\n'; 
   std::cout << "nnzGtG:       " << nnzGtG << '\n'; 
+#endif
 
 
   if (m_p_domain->GetRank()  == m_root)
