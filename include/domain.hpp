@@ -40,7 +40,7 @@ class Domain
     void SetDirichletDOFs(std::vector<int>& glbDirDOFs);
     const std::vector<int>&  GetDirichletDOFs()const{return m_DirichletDOFs;}
     std::vector<double>* GetMultiplicity(){return &m_multiplicity;}
-
+    void HandlePreconditioning();
 
 //    void SetMatrixG();
 
@@ -62,6 +62,8 @@ class Domain
     int m_l0;
     std::vector<int> m_DirichletDOFs;
 
+    std::vector<int> m_I_DirichletPrecondDOFs;
+    std::vector<int> m_B_DirichletPrecondDOFs;
 
     // A * x = b
 //    int m_cnt_setLocalMatrix;
@@ -73,6 +75,8 @@ class Domain
     // for interface operator
     std::vector<Interface> m_interfaces;
     std::vector<double> m_multiplicity;
+
+    void _SetDirichletPrecondDOFs();
 
     // dbg ---------------------------- 
     void m_dbg_printNeighboursRanks();

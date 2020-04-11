@@ -27,6 +27,11 @@ void Domain::m_Init()
   m_neqPrimal = 0;
   m_neqDual= 0;
   m_DirichletDOFs.resize(0);
+
+  m_I_DirichletPrecondDOFs.resize(0);
+  m_B_DirichletPrecondDOFs.resize(0);
+
+
   MPI_Comm_rank(*m_pcomm,&m_mpirank);
   MPI_Comm_size(*m_pcomm,&m_mpisize);
 
@@ -34,9 +39,7 @@ void Domain::m_Init()
 
 void Domain::InitStiffnessMatrix()
 {
-
   m_p_stiffnessMatrix = new StiffnessMatrix(&m_g2l,m_mpirank);
-
 }
 
 void Domain::SetMappingLoc2Glb(std::vector<int>& _l2g)
@@ -156,7 +159,8 @@ void Domain::SetInterfaces()
       hmpi.RecvInt(&neqInterface,1, neighRank);
     }
 
-    std::cout << "neqInterface= " << neqInterface << std::endl;
+    std::cout << "neighbRank: " << neighRank;
+    std::cout << " -- neqInterface = " << neqInterface << std::endl;
 
 
 
@@ -186,9 +190,11 @@ void Domain::SetInterfaces()
 
   }
 
+
   // set weight and get dual number of dofs
   m_neqDual = 0;
   m_multiplicity.resize(m_neqPrimal,1);
+
   for (auto& i_intfc : m_interfaces)
   {
     for(auto& ddof : i_intfc.m_interfaceDOFs)
@@ -198,9 +204,9 @@ void Domain::SetInterfaces()
 
   }
 
-  for (auto& im :  m_multiplicity)
-    im = sqrt(im);//(im - 1) * im * 0.5;
-#if DBG > 2
+  for (auto& im :  m_multiplicity) im = sqrt(im);
+
+#if DBG > 3
   for (auto& im :  m_multiplicity)
     std::cout << im << ' ';
   std::cout << std::endl;
@@ -208,6 +214,40 @@ void Domain::SetInterfaces()
 #endif
 
 
+
+}
+
+void Domain::_SetDirichletPrecondDOFs()
+{
+  std::vector<bool> isDualDOF(m_neqPrimal,false);
+  for (auto& i_intfc : m_interfaces)
+  {
+    for(auto& ddof : i_intfc.m_interfaceDOFs)
+    {
+      isDualDOF[ddof] = true;
+    }
+  }
+
+
+  //for (auto idof : isDualDOF)
+  for (int id = 0; id < (int)isDualDOF.size(); id++)
+  {
+    if (isDualDOF[id])
+      m_B_DirichletPrecondDOFs.push_back(id);
+    else
+      m_I_DirichletPrecondDOFs.push_back(id);
+
+  }
+}
+
+void Domain::HandlePreconditioning()
+{
+    
+  _SetDirichletPrecondDOFs();
+ 
+  m_p_stiffnessMatrix->SetDirichletPrecond(
+        m_I_DirichletPrecondDOFs, 
+        m_B_DirichletPrecondDOFs);
 
 }
 
