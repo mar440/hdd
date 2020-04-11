@@ -42,7 +42,7 @@ Mesh::~Mesh()
 
 
 
-int Mesh::generateMesh(int ne[], int ns[], int nl)
+int Mesh::generateMesh(double size[], int ne[], int ns[], int nl)
 {
 
 // number of elements in x, y direction per subdomain
@@ -57,7 +57,7 @@ int Mesh::generateMesh(int ne[], int ns[], int nl)
   std::string fname = "test.vtu";
   m_mesh = vtkUnstructuredGrid::New();
   // vtkSmartPointer<vtkUnstructuredGrid>::New();
-  double Lx(3), Ly(1), x0(-1), y0(-1);
+  double Lx(size[0]), Ly(size[1]), x0(-1), y0(-1);
 
   m_mesh = squareMesh(Lx,Ly, x0, y0);
 
