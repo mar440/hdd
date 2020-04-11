@@ -96,9 +96,12 @@ namespace tools
         v2.begin(), v2.end(), v12.begin()); 
   
     v12.resize(it - v12.begin());
+#if DBG > 2
+    std::cout << "intersection DOFs (global numbering) " <<std::endl;
     for (auto& iii : v12)
       std::cout << iii << ' ';
     std::cout << std::endl;
+#endif
     //std::cout << "The intersection has " << (ls - v12.begin()) << " elements:"; 
     //for (it = v12.begin(); it != ls; ++it) 
     //    std::cout << ' ' << *it; 
