@@ -1,14 +1,15 @@
 #pragma once
 
-#include "mesh.hpp"
+#include <mpi.h>
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
-#include "types.hpp"
 
+#include "mesh.hpp"
+#include "types.hpp"
 #include "domain.hpp"
 #include "interfaceOperatorB.hpp"
 #include "interfaceOperatorG.hpp"
-#include <mpi.h>
+#include "solver.hpp"
 
 
 
@@ -28,6 +29,7 @@ class Data{
     Domain* GetDomain(){return  &m_domain;}
     void SetDirichletDOFs(std::vector<int>&v);
     InterfaceOperatorB* GetInterfaceOperatorB(){return m_p_interfaceOperatorB;}
+    void Solve(Eigen::VectorXd&);
 //    InterfaceOperatorG* GetInterfaceOperatorG(){return m_p_interfaceOperatorG;}
 
 
@@ -48,6 +50,7 @@ class Data{
 
     void m_SetKernelNumbering();
     std::vector<int>& _GetDefectPerSubdomains(){return m_defectPerSubdomains;}
+    Solver m_solver;
 
 
 

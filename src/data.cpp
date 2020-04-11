@@ -91,6 +91,12 @@ void Data::FinalizeNumericAssembling()
 
   // ASSEMBLE & FACTORIZE LINEAR OPERATOR
   m_domain.GetStiffnessMatrix()->FinalizeNumericPart(m_domain.GetDirichletDOFs());
+
+
+  // DIRICHLET PRECONDITIONER
+  m_domain.HandlePreconditioning();
+
+
   // NUMEBRING FOR GtG MATRIX
   m_SetKernelNumbering();
   // FETI COARSE SPACE 
@@ -129,34 +135,37 @@ void Data::m_SetKernelNumbering()
   m_container.resize(m_mpiSize,m_domain.GetStiffnessMatrix()->GetDefect());
 
 
+#if DBG > 2
   for (auto& iw : m_container) std::cout<< iw << ' ';
   std::cout << '\n';
+#endif
   MPI_Alltoall(
       m_container.data(),1,MPI_INT,
       m_defectPerSubdomains.data(),1,MPI_INT,
       *m_pcomm);
 
+#if DBG > 2
   for (auto& iw : m_defectPerSubdomains) std::cout<< iw << ' ';
   std::cout << '\n';
-
-
+#endif
 
   m_container.resize(0);
   m_container.shrink_to_fit();
-//    m_domain.GetStiffnessMatrix()->GetDefect();
-
-  //MPI_Allgather(
-  //  void* send_data,
-  //  int send_count,
-  //  MPI_Datatype send_datatype,
-  //  void* recv_data,
-  //  int recv_count,
-  //  MPI_Datatype recv_datatype,
-  //  MPI_Comm communicator)
-
 
 }
 
+void Data::Solve(Eigen::VectorXd& solution)
+{
+
+  bool solverState = m_solver.pcpg(*this,solution);
+
+
+  if (solverState)
+    std::cout << "successful\n";
+  else
+    std::cout << "Iterative solver didn't finish successfully.\n";
+
+}
 
 
 

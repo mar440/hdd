@@ -14,7 +14,26 @@
 #include <vtkCellData.h>
 
 
-using namespace std;
+
+//std::vector <>;
+
+
+//{ "NAME_OF_PARAM  ","TYPE"  , "VALUE" , "      DESCRIPTION      " }
+
+static std::vector<std::vector<std::string>> default_params = {
+  { "preconditioner", "string", "lumped", "type of preconditioning"},
+  { "nex",           "int"    ,  "15"    , "number of elements in x dir" },
+  { "ney",           "int"    ,  "15"    , "number of elements in y dir" },
+  { "nsx",           "int"    ,  "5"     , "number of subdomains in x dir" },
+  { "nsy",           "int"    ,  "5"     , "number of subdomains in y dir" },
+  { "Lx",            "double" ,  "8"     , "lenght in x dir." },
+  { "Ly",            "double" ,  "8"     , "lenght in y dir." },
+  { "nLevels",       "int"    ,  "0"     , "for hierarchical decomp." },
+};
+
+
+
+
 using namespace Eigen;
 
 int main(int argc, char **argv) 
@@ -33,7 +52,7 @@ int main(int argc, char **argv)
   std::ofstream out(fname);
   std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
   std::cout.rdbuf(out.rdbuf());
-  cout << "SUBDOMAIN id. " << rank << "\n";
+  std::cout << "SUBDOMAIN id. " << rank << "\n";
 
 //////////////////////
 // Build-in mesher and
@@ -41,14 +60,14 @@ int main(int argc, char **argv)
   Mesh mesh;
   {
     // global mesh
-    int n_elements[] = {15, 15};
-    int n_subdomains[] = {8,3};
+    int n_elements[] = {15,15};
+    int n_subdomains[] = {3,3};
     int n_levels = 0;
-    double length[] = {8,3};
+    double size[] = {0.8,0.8};
     // build-in generator
-    mesh.generateMesh( n_elements, n_subdomains, n_levels);
+    mesh.generateMesh(size, n_elements, n_subdomains, n_levels);
   }
-  cout << "after mesh \n";
+  std::cout << "after mesh \n";
 
 // decomposition
   mesh.extractSubdomainMesh();
@@ -56,7 +75,7 @@ int main(int argc, char **argv)
 //## HDD ##  
 //# initialize library (copy mpi_comm)
   Data dataH(&comm);
-  cout << "after dataH\n";
+  std::cout << "after dataH\n";
 
   // TODO make it inside the HDD library
   dataH.GetDomain()->SetNeighboursRanks(mesh.getNeighboursRanks());
@@ -93,7 +112,7 @@ int main(int argc, char **argv)
 //## HDD ##
 //# creation mapping vectors etc ...
   dataH.FinalizeSymbolicAssembling();
-  cout << "after finalizeGlobalIds\n";
+  std::cout << "after finalizeGlobalIds\n";
 
 
   {
@@ -116,11 +135,9 @@ int main(int argc, char **argv)
       switch (cell->GetCellType()){
         case VTK_QUADRATIC_QUAD:
           element = new QUADRATIC_QUAD;
-          std::cout << "quadratic_quad\n";
           break;
         case VTK_QUAD:
           element = new QUAD;
-          std::cout << "quad\n";
           break;
         default:
           continue;
@@ -131,8 +148,8 @@ int main(int argc, char **argv)
 #if DBG > 4
       auto sv = linalg::svd0(K_loc);
       for (int i = 0; i < sv.size(); i++)
-        cout << sv(i) << ' ';
-      cout << '\n';
+        std::cout << sv(i) << ' ';
+      std::cout << '\n';
 #endif
 
 
@@ -157,10 +174,11 @@ int main(int argc, char **argv)
   dataH.FinalizeNumericAssembling();
 
 
-  Solver solver;
 
+//## HDD ##
+//# solving 
   Eigen::VectorXd solution;
-  solver.pcpg(dataH, solution);
+  dataH.Solve(solution);
 
 
 
