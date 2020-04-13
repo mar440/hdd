@@ -23,7 +23,7 @@ class InterfaceOperatorB
 //    void GinvGtG(const Eigen::MatrixXd& in, Eigen::MatrixXd& lambda0);
 
     void mult_invGtG(const Eigen::MatrixXd&, Eigen::MatrixXd&);
-    void Projection(const Eigen::MatrixXd&, Eigen::MatrixXd&);
+    Eigen::MatrixXd Projection(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void mult_F(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void Scaling(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void Scaling(Eigen::MatrixXd&);

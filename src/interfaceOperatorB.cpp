@@ -643,7 +643,7 @@ void InterfaceOperatorB::mult_invGtG(const Eigen::MatrixXd& in, Eigen::MatrixXd&
 
 
 
-void InterfaceOperatorB::Projection(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
+Eigen::MatrixXd InterfaceOperatorB::Projection(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
 
   Eigen::MatrixXd Bt_in, Gt_in, invGtG_Gt_in, R_invGtG_Gt_in, G_invGtG_Gt_in;
@@ -655,17 +655,19 @@ void InterfaceOperatorB::Projection(const Eigen::MatrixXd& in, Eigen::MatrixXd& 
   // 1) y1 = (-1) * Rt * Bt * in = Gt * in                          // not multiplied by (-1)
     Gt_in =  R.transpose() * Bt_in;  Bt_in.resize(0,0);               // (-1)  not multiplied  here
 
-  // 2) y2 = inv(GtG) * y1 = inv(GtG) * Gt * in
+  // 2) y2 = inv(GtG) * y1 = inv(GtG) * Gt * in  ( alpha = inv(GtG) * Gt * in )
   mult_invGtG(Gt_in,invGtG_Gt_in);  Gt_in.resize(0,0);
 
   // 3) y3 = R * y2 = R * inv(GtG) * Gt * in 
-  R_invGtG_Gt_in =  R * invGtG_Gt_in;  invGtG_Gt_in.resize(0,0);    // (-1)  not multiplied  here
+  R_invGtG_Gt_in =  R * invGtG_Gt_in;    // (-1)  not multiplied  here
 
   // 4) y4 = (-1) * B * R * y2 = G * inv(GtG) * Gt * in   // not multiplied by (-1)
   multB(R_invGtG_Gt_in,G_invGtG_Gt_in); R_invGtG_Gt_in.resize(0,0); // (-1) not multiplied here
 
   // out = (I - G * inv(GtG) * Gt) * in  
   out = in - G_invGtG_Gt_in;
+
+  return invGtG_Gt_in;
 
 }
 
