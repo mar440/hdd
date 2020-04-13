@@ -1,7 +1,6 @@
 #include "../include/data.hpp"
 #include "../include/element.hpp"
 #include "../include/linearAlgebra.hpp"
-#include <iostream>
 #include <vtkCell.h>
 #include <string>
 #include "../include/stiffnessMatrix.hpp"
@@ -17,20 +16,35 @@ Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
 {
   m_pcomm = _pcomm;
   m_p_interfaceOperatorB = nullptr;
-//  m_p_interfaceOperatorG = nullptr;
+
   MPI_Comm_rank(*m_pcomm, &m_mpiRank);
   MPI_Comm_size(*m_pcomm, &m_mpiSize);
+
   m_container.resize(0);
   m_defectPerSubdomains.resize(0);
   m_DirichletGlbDofs.resize(0); 
+
+
+  std::string fname = "out_" + std::to_string(m_mpiRank) + ".txt";
+
+
+  m_filestr.open (fname);
+  m_p_backup = std::cout.rdbuf(); // back up cout's streambuf
+
+  m_p_sbuf = m_filestr.rdbuf();   // get file's streambuf
+  std::cout.rdbuf(m_p_sbuf);
+  std::cout << "++++++++++++++++++++++++\n";
+  std::cout << "SUBDOMAIN id. " << m_mpiRank << "\n";
+  std::cout << "++++++++++++++++++++++++\n\n";
+
+
+
+
 }
 
 Data::~Data()
 {
-  if (m_p_interfaceOperatorB)
-    delete m_p_interfaceOperatorB;
-//  if (m_p_interfaceOperatorG)
-//    delete m_p_interfaceOperatorG;
+  if (m_p_interfaceOperatorB) delete m_p_interfaceOperatorB;
 }
 
 void Data::SymbolicAssembling(std::vector<int>& elemntIds)
@@ -41,6 +55,12 @@ void Data::SymbolicAssembling(std::vector<int>& elemntIds)
       elemntIds.end());
 }
 
+void Data::Finalize()
+{
+  std::cout.rdbuf(m_p_backup);        // restore cout's original streambuf
+
+  m_filestr.close();
+}
 
 void Data::FinalizeSymbolicAssembling()
 {

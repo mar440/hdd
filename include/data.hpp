@@ -11,6 +11,8 @@
 #include "interfaceOperatorG.hpp"
 #include "solver.hpp"
 
+#include <iostream>
+#include <fstream>
 
 
 class Data{
@@ -30,6 +32,7 @@ class Data{
     void SetDirichletDOFs(std::vector<int>&v);
     InterfaceOperatorB* GetInterfaceOperatorB(){return m_p_interfaceOperatorB;}
     void Solve(Eigen::VectorXd&);
+    void Finalize();
 //    InterfaceOperatorG* GetInterfaceOperatorG(){return m_p_interfaceOperatorG;}
 
 
@@ -51,6 +54,12 @@ class Data{
     void m_SetKernelNumbering();
     std::vector<int>& _GetDefectPerSubdomains(){return m_defectPerSubdomains;}
     Solver m_solver;
+
+
+    std::streambuf* m_p_sbuf;
+    std::streambuf* m_p_backup;
+    std::ofstream m_filestr;
+ 
 
 
 

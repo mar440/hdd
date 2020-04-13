@@ -1,5 +1,4 @@
 #include <iostream>
-#include <fstream>
 #include <mpi.h>
 #include <vtkUnstructuredGrid.h>
 #include "include/mesh.hpp"
@@ -47,12 +46,6 @@ int main(int argc, char **argv)
 
   MPI_Comm_rank(comm, &rank);
 
-  std::string fname = "out_" + std::to_string(rank) + ".txt";
-
-  std::ofstream out(fname);
-  std::streambuf *coutbuf = std::cout.rdbuf(); //save old buf
-  std::cout.rdbuf(out.rdbuf());
-  std::cout << "SUBDOMAIN id. " << rank << "\n";
 
 //////////////////////
 // Build-in mesher and
@@ -60,14 +53,13 @@ int main(int argc, char **argv)
   Mesh mesh;
   {
     // global mesh
-    int n_elements[] = {15,15};
-    int n_subdomains[] = {3,3};
+    int n_elements[] = {5,5};
+    int n_subdomains[] = {2,2};
     int n_levels = 0;
     double size[] = {0.8,0.8};
     // build-in generator
     mesh.generateMesh(size, n_elements, n_subdomains, n_levels);
   }
-  std::cout << "after mesh \n";
 
 // decomposition
   mesh.extractSubdomainMesh();
@@ -75,7 +67,6 @@ int main(int argc, char **argv)
 //## HDD ##  
 //# initialize library (copy mpi_comm)
   Data dataH(&comm);
-  std::cout << "after dataH\n";
 
   // TODO make it inside the HDD library
   dataH.GetDomain()->SetNeighboursRanks(mesh.getNeighboursRanks());
@@ -112,7 +103,6 @@ int main(int argc, char **argv)
 //## HDD ##
 //# creation mapping vectors etc ...
   dataH.FinalizeSymbolicAssembling();
-  std::cout << "after finalizeGlobalIds\n";
 
 
   {
@@ -200,7 +190,7 @@ int main(int argc, char **argv)
 //    mesh.writeMesh(mesh.getGlobalMesh(), fnameVtk, true);
 //  }
 
-  std::cout.rdbuf(coutbuf); //reset to standard output again
+  dataH.Finalize();
 
   MPI_Comm_free(&comm);
 
