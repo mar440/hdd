@@ -381,7 +381,7 @@ void Mesh::extractSubdomainMesh()
     intArray->SetNumberOfTuples(nSubCells);
     intArray->FillValue(-1);
     m_subdomainMesh->GetCellData()->AddArray(intArray);
-    cout << "array \"" << GLOBAL_NUMBERING  <<  "\" added in global mesh\n";
+//    cout << "array \"" << GLOBAL_NUMBERING  <<  "\" added in global mesh\n";
   }
 
 
