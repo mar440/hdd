@@ -105,6 +105,14 @@ void InterfaceOperatorB::multB(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
   }
 }
 
+void InterfaceOperatorB::solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
+{
+
+  if (m_p_domain->GetRank()  == m_root)
+    out = m_pardisoSolver.solve(in);
+
+}
+
 
 void InterfaceOperatorB::_placeBlockInGlobalGtG(
     std::vector<int>& I_COO,
@@ -130,8 +138,6 @@ void InterfaceOperatorB::_placeBlockInGlobalGtG(
   }
 }
 
-
-
 void InterfaceOperatorB::FetiCoarseSpace(
     std::vector<int>& defectPerSubdomains)
 {
@@ -146,16 +152,6 @@ void InterfaceOperatorB::FetiCoarseSpace(
   }
 
 }
-
-void InterfaceOperatorB::solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
-{
-
-  if (m_p_domain->GetRank()  == m_root)
-    out = m_pardisoSolver.solve(in);
-
-}
-
-
 
 
 void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
@@ -655,7 +651,7 @@ Eigen::MatrixXd InterfaceOperatorB::Projection(const Eigen::MatrixXd& in, Eigen:
   // 1) y1 = (-1) * Rt * Bt * in = Gt * in                          // not multiplied by (-1)
     Gt_in =  R.transpose() * Bt_in;  Bt_in.resize(0,0);               // (-1)  not multiplied  here
 
-  // 2) y2 = inv(GtG) * y1 = inv(GtG) * Gt * in  ( alpha = inv(GtG) * Gt * in )
+  // 2) y2 = alpha =  inv(GtG) * y1 = inv(GtG) * Gt * in
   mult_invGtG(Gt_in,invGtG_Gt_in);  Gt_in.resize(0,0);
 
   // 3) y3 = R * y2 = R * inv(GtG) * Gt * in 
@@ -677,9 +673,7 @@ void InterfaceOperatorB::mult_F(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
 
   Eigen::MatrixXd Bt_in, Kplus_Bt_in;
-
   auto *Kplus = m_p_domain->GetStiffnessMatrix();
-
   multBt(in, Bt_in);
   Kplus->solve(Bt_in,Kplus_Bt_in);   Bt_in.resize(0,0);
   multB(Kplus_Bt_in, out);  Kplus_Bt_in.resize(0,0);
