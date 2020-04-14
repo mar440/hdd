@@ -46,8 +46,6 @@ void StiffnessMatrix::AddElementContribution(std::vector<int>& glbIds,
 
   if (m_cnt_setLocalMatrix==0)
   {
-//RHS    m_rhs.resize(m_neqPrimal);
-//RHS    m_rhs.setZero();
 #if DBG > 0
     std::cout << "local numbering - start\n";
 #endif
@@ -64,7 +62,6 @@ void StiffnessMatrix::AddElementContribution(std::vector<int>& glbIds,
   for (int row = 0; row < neqLocal; row++)
   {
     rowLocal = (*m_pg2l)[glbIds[row]];
-//RHS    m_rhs(rowLocal) += valLocRHS[row];
 
     for (int col = 0; col < neqLocal; col++)
     {
@@ -74,7 +71,6 @@ void StiffnessMatrix::AddElementContribution(std::vector<int>& glbIds,
     }
 #if DBG > 3
     std::cout << (*m_pg2l)[glbIds[row]] << ' ';
-//  m_pcomm =  _pcomm;
 #endif
   }
 #if DBG > 3
@@ -98,7 +94,6 @@ void StiffnessMatrix::AddRHSContribution(std::vector<int>& glbIds,
     std::cout << "local numbering (RHS) - start\n";
 #endif
   }
-
 
 
   int neqLocal = glbIds.size();
@@ -152,7 +147,6 @@ void StiffnessMatrix::m_FactorizeLinearOperator(std::vector<int> nullPivots)
 void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
 {
 
-
   if (m_numberOfElements==0) m_numberOfElements = m_cnt_setLocalMatrix;
 
   m_spmatK.resize(m_neq, m_neq);
@@ -160,11 +154,8 @@ void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
   m_spmatK.makeCompressed();
   ApplyDirichletBC(m_spmatK,DirDOFs);
 
-
   m_trK.clear();
   m_trK.shrink_to_fit();
-
-
 
   // build-in factorization based on PARDISO
   m_kerK = _GetKernelFromK(m_spmatK);
@@ -181,29 +172,22 @@ void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
   std::cout << "sol =  " << del.norm() << std::endl;
 #endif
 
-
-
 #if DBG>2
   Eigen::Map<Eigen::VectorXi> MnullPivots(m_nullPivots.data(),m_nullPivots.size());
   std::cout << "nullPivots: \n"  <<
     MnullPivots << std::endl;
 #endif
 
-
-  
-
-
 #if DBG>3
   m_dbg_printStiffnessMatrix(m_spmatK);
 #endif
-
 
 }
 
 
 void StiffnessMatrix::Precond(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
-  
+
   if (in.rows() != m_spmatK.rows())
     std::runtime_error(__FILE__);
 
@@ -231,7 +215,6 @@ void StiffnessMatrix::Precond(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
   else
     std::runtime_error("UNKNOWN PRECONDITIONER TYPE.");
 
-
 }
 
 
@@ -249,9 +232,6 @@ void StiffnessMatrix::solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
   out = m_pardisoSolver.solve(in);
 }
-
-
-
 
 Eigen::MatrixXd StiffnessMatrix::_GetKernelFromK(const SpMat& K)
 {
@@ -285,7 +265,7 @@ typedef int  eslocal;
 //    3) use_null_pivots_or_s_set
   // NtN_Mat from null pivots or fixing DOFs
 //BOOL USE_NULL_PIVOTS_OR_S_SET                         = TRUE;
-  bool use_null_pivots_or_s_set                         = true;
+//  bool use_null_pivots_or_s_set                         = true;
 
 ////    4) diagonalRegularization
 ////  regularization only on diagonal elements (big advantage: patern of K and K_regular is the same !!!)
@@ -345,14 +325,7 @@ typedef int  eslocal;
 // ///////////////////////////////////////////////////////////////////////////
 
 
-
-
-
-
   int K_rows = K.rows();
-
-//  if (!use_null_pivots_or_s_set) diagonalRegularization=false;
-
 
   //TODO if K.rows<=sc_size, use directly input K instead of S
   //
@@ -491,22 +464,19 @@ typedef int  eslocal;
     fix_dofs[i]=permVec[nonsing_size + i];
 
   Eigen::MatrixXd S_ss;
-  SpMat K_rr, K_ss, K_rs, K_sr;
-
+  SpMat K_rr, K_rs, K_sr;
 
   K_rr = K_modif.block(0,0,nonsing_size,nonsing_size);
   K_rs = K_modif.block(0,nonsing_size,nonsing_size,sc_size);
   K_sr = K_modif.block(nonsing_size,0,sc_size,nonsing_size);
-  K_ss = K_modif.block(nonsing_size,nonsing_size,sc_size,sc_size);
-
+  S_ss = K_modif.block(nonsing_size,nonsing_size,sc_size,sc_size);
 
   Eigen::PardisoLU<SpMat >  Krr_solver;
   Krr_solver.compute(K_rr);
 
-
   Eigen::MatrixXd K_rsDense = K_rs.toDense();
 
-  S_ss = K_ss - K_sr * (Krr_solver.solve(K_rsDense));
+  S_ss -= K_sr * (Krr_solver.solve(K_rsDense));
 
 // IDENTIFICATIONS OF ZERO EIGENVALUES
   Eigen::MatrixXd U_, V_;
@@ -711,14 +681,11 @@ void StiffnessMatrix::SetDirichletPrecond(
 
   int nI = (int) I_DOFs.size();
   int nB = (int) B_DOFs.size();
-  
-
 
   SpMat K_II = Kcopy.block(0,0,nI,nI);
   m_K_IB = Kcopy.block(0,nI,nI,nB);
   m_K_BI = Kcopy.block(nI,0,nB,nI);
   m_K_BB = Kcopy.block(nI,nI,nB,nB);
-
 
   m_pardisoSolverDirichlet_KII.analyzePattern(K_II);
   m_pardisoSolverDirichlet_KII.factorize(K_II);
@@ -731,10 +698,6 @@ void StiffnessMatrix::SetDirichletPrecond(
   m_dbg_printStiffnessMatrix(m_spmatK,"m_spmatK");
   m_dbg_printStiffnessMatrix(Kcopy,"Kcopy");
 #endif
-
-
-
-
 
 }
 
