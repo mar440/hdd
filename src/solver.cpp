@@ -13,10 +13,22 @@ bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
 {
 
 
+
+
+  auto solverOpts = data.GetChild("solver");
+  int verboseLevel = data.GetChild("outputs").get<int>("verbose");
+
+  double eps_iter = solverOpts.get<double>("stopingCriteria",0);
+  int max_iter= solverOpts.get<int>("maxNumbIter",0);
+
+
+  std::cout <<"eps_iter: " << eps_iter << '\n';
+  std::cout <<"max_iter: " << max_iter << '\n';
+
+
+
   const int nRHS = 1;
 
-  double eps_iter = 1.0e-5; //atof(options2["eps_iter"].c_str());
-  double max_iter = 250; //atoi(options2["max_iter"].c_str());
 
   double  norm_gPz0;
 
@@ -57,15 +69,15 @@ bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
 
   p_opB->multBt(lambda,Btw);
 
-#if DBG > 3
-  Eigen::MatrixXd Gt_lambda0 = (-1) * R_kerK.transpose() * Btw;
-  std::cout << "Gt_lambda0 = \n" << Gt_lambda0 << '\n'; 
-  Eigen::MatrixXd del = Gt_lambda0 - e_loc;
-  std::cout << "|| Gt*lambda0 - e ||  = \n" << del.norm() << '\n';
-  MatrixXd Plambda0;
-  beta = p_opB->Projection(lambda,Plambda0);
-  std::cout << "Plambda0 = \n" << Plambda0 << '\n';
-#endif
+  if (verboseLevel > 3){
+    Eigen::MatrixXd Gt_lambda0 = (-1) * R_kerK.transpose() * Btw;
+    std::cout << "Gt_lambda0 = \n" << Gt_lambda0 << '\n'; 
+    Eigen::MatrixXd del = Gt_lambda0 - e_loc;
+    std::cout << "|| Gt*lambda0 - e ||  = \n" << del.norm() << '\n';
+    MatrixXd Plambda0;
+    beta = p_opB->Projection(lambda,Plambda0);
+    std::cout << "Plambda0 = \n" << Plambda0 << '\n';
+  }
 
   // initial gradient (residual)
   MatrixXd fmBtl = rhs_primal - Btw;
@@ -80,7 +92,15 @@ bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
 
   solutionPrev = Eigen::MatrixXd::Zero(rhs_primal.rows(),nRHS);
   del_solution = solution;
-  double norm_solution0 = solution.norm();
+ 
+  double norm_solution0 = pow(del_solution.norm(),2);
+
+  domain.hmpi.GlobalSum(&norm_solution0,1);
+  norm_solution0 = sqrt(norm_solution0);
+
+
+
+  double norm_solution(1);
 
   // equilibrium equation
   K.Mult(solution,KufBtlambda);
@@ -131,13 +151,17 @@ bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
   for (iter = 0; iter < max_iter; iter++)
   {
 
+    norm_solution = pow(del_solution.norm(),2);
+    domain.hmpi.GlobalSum(&norm_solution,1);
+    norm_solution = sqrt(norm_solution);
+
     if (domain.GetRank() == 0)
     {
       std::cout << std::setw(4) <<  iter+ 1 << "  ";
       std::cout << std::setw(4) << std::scientific << std::setprecision(4) <<
         sqrt(gtPz(0,0)) / norm_gPz0 << "      ";
       std::cout << std::setw(4) << std::scientific << std::setprecision(4) <<
-        del_solution.norm() / norm_solution0 << "      ";
+        norm_solution / norm_solution0 << "      ";
       std::cout << std::setw(4) << std::scientific << std::setprecision(4) <<
         KufBtlambda.norm() << '\n';
     }
@@ -298,7 +322,15 @@ bool Solver::mpcpg(Data& data, Eigen::VectorXd& _solution)
 
   solutionPrev = Eigen::MatrixXd::Zero(rhs_primal.rows(),nRHS);
   del_solution = solution;
-  double norm_solution0 = solution.norm();
+ 
+  double norm_solution0 = pow(del_solution.norm(),2);
+
+  domain.hmpi.GlobalSum(&norm_solution0,1);
+  norm_solution0 = sqrt(norm_solution0);
+
+
+
+  double norm_solution(1);
 
   // equilibrium equation
   K.Mult(solution,KufBtlambda);
@@ -311,6 +343,10 @@ bool Solver::mpcpg(Data& data, Eigen::VectorXd& _solution)
   p_opB->multB(tmp,z);
   p_opB->Scaling(z);
   beta = p_opB->Projection(z,Pz);
+
+// SFETI
+  p_opB->SFETI_Beta(Pz);
+
 
   gtPz = g.transpose()*Pz;
   domain.hmpi.GlobalSum(gtPz.data(),gtPz.size());
@@ -349,13 +385,17 @@ bool Solver::mpcpg(Data& data, Eigen::VectorXd& _solution)
   for (iter = 0; iter < max_iter; iter++)
   {
 
+    norm_solution = pow(del_solution.norm(),2);
+    domain.hmpi.GlobalSum(&norm_solution,1);
+    norm_solution = sqrt(norm_solution);
+
     if (domain.GetRank() == 0)
     {
       std::cout << std::setw(4) <<  iter+ 1 << "  ";
       std::cout << std::setw(4) << std::scientific << std::setprecision(4) <<
         sqrt(gtPz(0,0)) / norm_gPz0 << "      ";
       std::cout << std::setw(4) << std::scientific << std::setprecision(4) <<
-        del_solution.norm() / norm_solution0 << "      ";
+        norm_solution / norm_solution0 << "      ";
       std::cout << std::setw(4) << std::scientific << std::setprecision(4) <<
         KufBtlambda.norm() << '\n';
     }
