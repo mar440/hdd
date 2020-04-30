@@ -7,7 +7,6 @@
 
 Domain::Domain(MPI_Comm* _pcomm): hmpi(_pcomm)
 {
-
   m_pcomm =  _pcomm;
   m_Init();
 }
@@ -37,9 +36,9 @@ void Domain::m_Init()
 
 }
 
-void Domain::InitStiffnessMatrix()
+void Domain::InitStiffnessMatrix(PRECONDITIONER_TYPE precondType)
 {
-  m_p_stiffnessMatrix = new StiffnessMatrix(&m_g2l,m_mpirank);
+  m_p_stiffnessMatrix = new StiffnessMatrix(&m_g2l,m_mpirank, precondType);
 }
 
 void Domain::SetMappingLoc2Glb(std::vector<int>& _l2g)
