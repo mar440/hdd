@@ -7,7 +7,7 @@
 
 typedef Eigen::SparseMatrix<double, Eigen::RowMajor> SpMat;
 typedef Eigen::Triplet<double> T;
-
+enum PRECONDITIONER_TYPE {NONE, LUMPED, DIRICHLET};
 
 #define GLOBAL_NUMBERING "globalNumbering"
 #define SUBDOMAIN_ID "SubdomainId"
@@ -16,4 +16,3 @@ typedef Eigen::Triplet<double> T;
 #define DISPLACEMENT "displacement"
 
 
-enum PRECONDITIONER_TYPE {NONE, LUMPED, DIRICHLET};
