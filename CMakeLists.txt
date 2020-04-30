@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 
 project(mpitest)
 
-add_compile_definitions(DBG=3)
+add_compile_definitions(DBG=2)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMake/") 
 file(GLOB sources 
@@ -28,9 +28,6 @@ set(HAVE_MKL 1)
 include_directories(${MKL_INCLUDE_DIR})
 link_directories(${MKL_LIBRARY_DIR})
 
-message("${MKL_INCLUDE_DIR} ----------------------------------")
-
-
 set(BLAS_VENDOR Intel10_64lp) 
 find_package(BLAS REQUIRED) 
 find_package(LAPACK REQUIRED)
@@ -48,6 +45,7 @@ add_definitions(-DOMPI_SKIP_MPICXX)
 #################
 ## VTK ##########
 #################
+#TODO make the mesher as a separate library to avoi vtk dependency
 set(VTK_DIR  "$ENV{VTK_ROOT}/build" CACHE PATH "")
 find_package(VTK REQUIRED)
 include(${VTK_USE_FILE})
@@ -61,17 +59,66 @@ include_directories(EIGEN3_INCLUDE_DIR)
 #################
 ## METIS ########
 #################
-set(METIS_LIBRARIES} $ENV{METIS_LIBRARIES} CACHE PATH "Where the MKL are stored")
-set(METIS_INCLUDE_DIRS $ENV{METIS_INCLUDEDIRS} CACHE PATH "Where the MKL are stored")
-include_directories(${METIS_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR})
+set(METIS_LIBRARIES $ENV{METIS_LIBRARIES}/libmetis.a CACHE PATH "mydoc")
+set(METIS_INCLUDEDIRS $ENV{METIS_INCLUDEDIRS} CACHE PATH "mydoc")
+include_directories(${METIS_INCLUDEDIRS} ${CMAKE_CURRENT_SOURCE_DIR})
 
-# Use imported targets would make things much eazier. Thanks Levi for pointing it out.
-#aux_source_directory(. SRC_LIST)
+#################
+## BOOST ########
+#################
+
+#		set(Boost_USE_STATIC_LIBS ON) 
+#		set(Boost_USE_MULTITHREADED ON)  
+set(Boost_USE_STATIC_RUNTIME OFF) 
+#		#find_package(Boost 1.45.0 COMPONENTS ) 
+#		set(BOOST_PACKAGES "date_time" "filesystem" "system" "chrono" "thread" "regex" "unit_test_framework")
+#		find_package(Boost ${BOOST_VERSION_REQUIRED} COMPONENTS ${BOOST_PACKAGES} REQUIRED)
+
+set(BOOST_PACKAGES "date_time" "filesystem" "system" "chrono" "thread" "regex" "unit_test_framework")
+
+# Boost version: Windows32(1.55) and Linux64(1.52)
+if(WIN32)
+ if(VTK_MAJOR_VERSION GREATER 6)
+  set(BOOST_VERSION_REQUIRED "1.64")
+ else()
+  set(BOOST_VERSION_REQUIRED "1.55")
+ endif()
+
+ add_definitions("/D _SCL_SECURE_NO_WARNINGS")
+ #set(Boost_COMPILER -vc120)
+ #add_definitions(-DBOOST_ALL_NO_LIB)
+else(WIN32)
+ set(BOOST_VERSION_REQUIRED "1.58")
+ add_definitions(-DBOOST_LOG_DYN_LINK)
+endif(WIN32)
+
+add_definitions(-DBOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE)
+
+if(WIN32)
+  find_package(Boost ${BOOST_VERSION_REQUIRED} REQUIRED) # COMPONENTS ${BOOST_PACKAGES})
+  link_directories(${Boost_LIBRARY_DIRS})
+  link_directories(${BOOST_LIBRARYDIR})
+  message(STATUS "BOOST LIBRARIES: ${Boost_LIBRARIES}")
+  message(STATUS "BOOST LIBRARY_DIRS: ${Boost_LIBRARY_DIRS}")
+else(WIN32)
+  find_package(Boost ${BOOST_VERSION_REQUIRED} COMPONENTS ${BOOST_PACKAGES} REQUIRED)
+endif(WIN32)
+
+add_definitions(-DBOOST_MINOR_VERSION=${Boost_MINOR_VERSION})
+
+if(Boost_FOUND)
+    include_directories(${Boost_INCLUDE_DIRS}) 
+else()
+  message("boost not!!! not found ----------------------------------")
+endif()
+
+
+# Use imported targets would make things much easier. Thanks Levi for pointing it out.
+
 add_executable(${PROJECT_NAME} main.cpp ${sources})
 target_link_libraries(${PROJECT_NAME}  PRIVATE MPI::MPI_C  ${VTK_LIBRARIES} Eigen3::Eigen 
-  ${METIS_LIBRARIES} ${BLAS_LIBRARIES})
+  ${METIS_LIBRARIES} ${BLAS_LIBRARIES}  ${Boost_LIBRARIES})
 
 
 set(CMAKE_CONFIGURATION_TYPES "Debug" CACHE STRING "" FORCE)
-
 set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
