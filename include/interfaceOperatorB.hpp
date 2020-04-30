@@ -20,13 +20,17 @@ class InterfaceOperatorB
   // orig G
     void FetiCoarseSpace(std::vector<int>&);
 
-//    void GinvGtG(const Eigen::MatrixXd& in, Eigen::MatrixXd& lambda0);
 
     void mult_invGtG(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     Eigen::MatrixXd Projection(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void mult_F(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void Scaling(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void Scaling(Eigen::MatrixXd&);
+
+    void SFETI_Beta(Eigen::MatrixXd& in);
+
+    void printInterfaceDOFs(std::string fname="");
+    void printNeighboursRanks(std::string fname="");
   private:
 
     Domain* m_p_domain;
@@ -41,13 +45,12 @@ class InterfaceOperatorB
 
     std::vector<int> m_listOfNeighbours;
     std::vector<int> m_listOfNeighboursColumPtr;
-    void solve(const Eigen::MatrixXd&, Eigen::MatrixXd&);
+    void _solve(const Eigen::MatrixXd&, Eigen::MatrixXd&);
 
     void _placeBlockInGlobalGtG(
         std::vector<int>& I_COO,
         std::vector<int>& J_COO,
         std::vector<double>& V_COO,
-//        std::vector<T>& _tr,
         Eigen::Ref<Eigen::MatrixXd> _GtG,
         int& tripletOffset, int rowOffset, int colOffset);
     SpMat m_spmatGtG;

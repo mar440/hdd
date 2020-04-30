@@ -6,10 +6,12 @@
 
 #include "../include/stiffnessMatrix.hpp"
 #include "../include/linearAlgebra.hpp"
+#include "../include/linearAlgebra.hpp"
 #include <cmath>
 
 
 
+#define GTG_ALL_NODES
 
 InterfaceOperatorB::InterfaceOperatorB(Domain* p_dom)
 {
@@ -105,10 +107,12 @@ void InterfaceOperatorB::multB(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
   }
 }
 
-void InterfaceOperatorB::solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
+void InterfaceOperatorB::_solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
 
+#if !defined(GTG_ALL_NODES)
   if (m_p_domain->GetRank()  == m_root)
+#endif
     out = m_pardisoSolver.solve(in);
 
 }
@@ -145,11 +149,14 @@ void InterfaceOperatorB::FetiCoarseSpace(
   m_p_defectPerSubdomains =  &defectPerSubdomains;
   _FetiCoarseSpaceAssembling();
 
-  if (m_p_domain->GetRank()  == m_root)
-  {
+#if !defined(GTG_ALL_NODES)
+  if (m_p_domain->GetRank()  == m_root) {
+#endif
     m_pardisoSolver.analyzePattern(m_spmatGtG);
     m_pardisoSolver.factorize(m_spmatGtG);
+#if !defined(GTG_ALL_NODES)
   }
+#endif
 
 }
 
@@ -197,7 +204,7 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     BR_myRank[cntI].resize(neqIntf,nRHS_myRank);
     BR_neighb[cntI].resize(neqIntf,nRHS_neighb);
 
-    // !!! REMAINDER in ''Gt*lambda = e'' negative sign: Gt = -Rt*Bt, e = -Rt*f
+    // !!! ALERT in ''Gt*lambda = e'' negative sign: Gt = -Rt*Bt, e = -Rt*f
     for (int row = 0; row < neqIntf; row++)
       BR_myRank[cntI].row(row) = (-1) * scale * (*kerK).row(iItf.m_interfaceDOFs[row]);
 
@@ -444,6 +451,22 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
 #endif
 
 
+
+
+#if !defined(GTG_ALL_NODES)
+  if (m_p_domain->GetRank()  == m_root)
+  {
+#endif
+    m_cumulativeDefectPerSubdomains.resize((*m_p_defectPerSubdomains).size(),0);
+    for (int ii = 0; ii < (int) (*m_p_defectPerSubdomains).size() - 1 ; ii++)
+    {
+      m_cumulativeDefectPerSubdomains[ii+1] = 
+        m_cumulativeDefectPerSubdomains[ii] + (*m_p_defectPerSubdomains)[ii];
+    }
+#if !defined(GTG_ALL_NODES)
+  }
+#endif
+
   if (m_p_domain->GetRank()  == m_root)
   {
 
@@ -452,12 +475,6 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     V_COO_GtG.resize(nnzGtG);
 
 
-    m_cumulativeDefectPerSubdomains.resize((*m_p_defectPerSubdomains).size(),0);
-    for (int ii = 0; ii < (int) (*m_p_defectPerSubdomains).size() - 1 ; ii++)
-    {
-      m_cumulativeDefectPerSubdomains[ii+1] = 
-        m_cumulativeDefectPerSubdomains[ii] + (*m_p_defectPerSubdomains)[ii];
-    }
 
     int cntGtG(0);
     int offsetRow(0);
@@ -519,18 +536,20 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   }
 
 
+#if defined(GTG_ALL_NODES)
+  I_COO_GtG.resize(nnzGtG);
+  J_COO_GtG.resize(nnzGtG);
+  V_COO_GtG.resize(nnzGtG);
+
+  m_p_domain->hmpi.BcastInt(I_COO_GtG.data(),nnzGtG,m_root);
+  m_p_domain->hmpi.BcastInt(J_COO_GtG.data(),nnzGtG,m_root);
+  m_p_domain->hmpi.BcastDbl(V_COO_GtG.data(),nnzGtG,m_root);
+#endif
+
+#if !defined(GTG_ALL_NODES)
   if (m_p_domain->GetRank()  == m_root)
   {
-
-//  prepared to distribute GtG all over the nodes
-//  //    I_COO_GtG.resize(nnzGtG);
-//  //    J_COO_GtG.resize(nnzGtG);
-//  //    V_COO_GtG.resize(nnzGtG);
-//  //
-//  //    m_p_domain->hmpi.BcastInt(I_COO_GtG.data(),nnzGtG,m_root);
-//  //    m_p_domain->hmpi.BcastInt(J_COO_GtG.data(),nnzGtG,m_root);
-//  //    m_p_domain->hmpi.BcastDbl(V_COO_GtG.data(),nnzGtG,m_root);
-
+#endif
     std::vector<T> trGtG(nnzGtG,T(0,0,0));
 
     for (int iG = 0; iG < nnzGtG; iG++)
@@ -543,26 +562,15 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     std::string fname = "GtG"; fname += std::to_string(m_p_domain->GetRank()) + ".txt";
     tools::printMatrix(m_spmatGtG,fname);
 #endif
+
+
+#if !defined(GTG_ALL_NODES)
   }
+#endif
 
 
 }
 
-//void InterfaceOperatorB::GinvGtG(const Eigen::MatrixXd& in_loc, Eigen::MatrixXd& out_glb)
-//{
-//
-//  // collect local Rt*X  to global Rt * X on root
-//  Eigen::MatrixXd in_glb;
-//  _GathervDblCoarse(in_loc,in_glb);
-//  Eigen::MatrixXd invGtG_in_glb;
-//
-//  if (m_p_domain->GetRank() == m_root)
-//  {
-//    solve(in_glb,invGtG_in_glb);
-//  }
-//
-//
-//}
 
 void InterfaceOperatorB::mult_invGtG(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
@@ -628,7 +636,7 @@ void InterfaceOperatorB::mult_invGtG(const Eigen::MatrixXd& in, Eigen::MatrixXd&
       cntAllElements +=  defectOnCurrentRank * in_cols;
     }
 
-    solve(rhs_glb,sol_glb);
+    _solve(rhs_glb,sol_glb);
 
   }
 
@@ -642,23 +650,28 @@ void InterfaceOperatorB::mult_invGtG(const Eigen::MatrixXd& in, Eigen::MatrixXd&
 Eigen::MatrixXd InterfaceOperatorB::Projection(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
 
+  // Although G = (-1) * B * R
+  // in step 1) and 4) ther's no multiplying by -1
+  //
+
+
   Eigen::MatrixXd Bt_in, Gt_in, invGtG_Gt_in, R_invGtG_Gt_in, G_invGtG_Gt_in;
   auto &R = *(m_p_domain->GetStiffnessMatrix()->GetKernel());
 
   // 0) y0 = Bt * in
   multBt(in,Bt_in);
 
-  // 1) y1 = (-1) * Rt * Bt * in = Gt * in                          // not multiplied by (-1)
-    Gt_in =  R.transpose() * Bt_in;  Bt_in.resize(0,0);               // (-1)  not multiplied  here
+  // 1) y1 = (-1) * Rt * Bt * in = Gt * in
+    Gt_in =  R.transpose() * Bt_in;  Bt_in.resize(0,0);
 
   // 2) y2 = alpha =  inv(GtG) * y1 = inv(GtG) * Gt * in
   mult_invGtG(Gt_in,invGtG_Gt_in);  Gt_in.resize(0,0);
 
   // 3) y3 = R * y2 = R * inv(GtG) * Gt * in 
-  R_invGtG_Gt_in =  R * invGtG_Gt_in;    // (-1)  not multiplied  here
+  R_invGtG_Gt_in =  R * invGtG_Gt_in;    
 
-  // 4) y4 = (-1) * B * R * y2 = G * inv(GtG) * Gt * in   // not multiplied by (-1)
-  multB(R_invGtG_Gt_in,G_invGtG_Gt_in); R_invGtG_Gt_in.resize(0,0); // (-1) not multiplied here
+  // 4) y4 = (-1) * B * R * y2 = G * inv(GtG) * Gt * in
+  multB(R_invGtG_Gt_in,G_invGtG_Gt_in); R_invGtG_Gt_in.resize(0,0);
 
   // out = (I - G * inv(GtG) * Gt) * in  
   out = in - G_invGtG_Gt_in;
@@ -729,6 +742,158 @@ void InterfaceOperatorB::Scaling(Eigen::MatrixXd& inout)
 
   for (int row = 0; row < inout.rows(); row++)
     inout.row(row) /=  m_scaling[row];
+
+}
+
+
+
+
+void InterfaceOperatorB::SFETI_Beta(Eigen::MatrixXd& inZs)
+{
+
+
+  // Zs projected residual from my rank
+
+  auto kerK = m_p_domain->GetStiffnessMatrix()->GetKernel();
+  auto interfaces = m_p_domain->GetInterfaces();
+//
+  int myDefect = m_p_domain->GetStiffnessMatrix()->GetDefect(); 
+  std::cout <<  "XXX = " <<m_cumulativeDefectPerSubdomains.size() << '\n';
+  int offset_myRank = m_cumulativeDefectPerSubdomains[m_p_domain->GetRank() ];
+//
+  // buffers
+  std::vector<Eigen::MatrixXd> G_myRank(interfaces.size(),Eigen::MatrixXd(0,0));
+  std::vector<Eigen::MatrixXd> G_neighb(interfaces.size(),Eigen::MatrixXd(0,0));
+
+  int colsZs= inZs.cols();
+
+  Eigen::MatrixXd RHS_Beta_s = Eigen::MatrixXd::Zero(m_GtG_dim,colsZs);
+
+
+  int offsetDual(0);
+
+
+// each rank computes whole block row 
+for (int cntI = 0; cntI < (int)interfaces.size(); cntI++)
+{
+
+    Interface &iItf = interfaces[cntI];
+    int nDOFsIntf = (int) iItf.m_interfaceDOFs.size();
+
+    ////////////////////////////////////////////////////
+    // CONVENTION: subdomain with higher rank has
+    // operator B (or G) with negative coefficients (-1)
+    ////////////////////////////////////////////////////
+    double scale(1.0);
+    if (m_p_domain->GetRank() > iItf.GetNeighbRank())
+      scale *= -1;
+
+    int neqIntf = (int) iItf.m_interfaceDOFs.size();
+
+    int neighbDefect = (*m_p_defectPerSubdomains)[iItf.GetNeighbRank()];
+    int offset_neighb = m_cumulativeDefectPerSubdomains[iItf.GetNeighbRank()];
+
+
+    G_myRank[cntI].resize(neqIntf,myDefect);
+    G_neighb[cntI].resize(neqIntf,neighbDefect);
+
+    for (int row = 0; row < neqIntf; row++)
+      G_myRank[cntI].row(row) = (-1) * scale * (*kerK).row(iItf.m_interfaceDOFs[row]);
+
+    m_p_domain->hmpi.SendDbl(G_myRank[cntI].data(),neqIntf * myDefect, iItf.GetNeighbRank());
+    m_p_domain->hmpi.RecvDbl(G_neighb[cntI].data(),neqIntf * neighbDefect, iItf.GetNeighbRank());
+
+    // myRank contribution
+    RHS_Beta_s.block(offset_myRank,0,myDefect,colsZs) +=
+      G_myRank[cntI].transpose() * inZs.block(offsetDual,0,nDOFsIntf,colsZs);
+    // neighbr contribution
+    RHS_Beta_s.block(offset_neighb,0,neighbDefect,colsZs) =
+      G_neighb[cntI].transpose() * inZs.block(offsetDual,0,nDOFsIntf,colsZs);
+
+
+    offsetDual += nDOFsIntf;
+}
+
+  std::cout << "RHS_Beta_s\n";
+  std::cout << RHS_Beta_s;
+  std::cout << "\nend\n";
+
+  Eigen::MatrixXd Beta_s = m_pardisoSolver.solve(RHS_Beta_s);
+  
+  std::cout << "Beta_s\n";
+  std::cout << Beta_s;
+  std::cout << "\nend\n";
+
+// empty buffers
+  for (int cntI = 0; cntI < (int)interfaces.size(); cntI++){
+    G_myRank[cntI].resize(0,0); G_neighb[cntI].resize(0,0);
+  }
+
+
+}
+
+
+void InterfaceOperatorB::printInterfaceDOFs(std::string name)
+{
+
+  if (name.size()==0) name = "matB";
+  std::string fname = name + std::to_string(m_p_domain->GetRank()) + ".txt";
+
+  int nLambda = m_p_domain->GetNumberOfDualDOFs();
+
+  Eigen::MatrixXd _matB(nLambda,4);
+
+  auto interfaces = m_p_domain->GetInterfaces();
+
+  int offset = 0;
+
+  int cnt(0);
+
+  for (auto& iItf : interfaces)
+  {
+    ////////////////////////////////////////////////////
+    // CONVENTION: subdomain with higher rank has
+    // operator B (or G) with negative coefficients (-1)
+    ////////////////////////////////////////////////////
+    double scale(1.0);
+    if (m_p_domain->GetRank() > iItf.GetNeighbRank())
+      scale *= -1;
+
+    int nDOFs = (int) iItf.m_interfaceDOFs.size();
+    for (int row = 0; row < nDOFs;row++)
+    {
+      _matB(cnt,0) = iItf.GetNeighbRank();
+      _matB(cnt,1) = iItf.m_interfaceDOFs[row];
+      _matB(cnt,2) = scale;
+      _matB(cnt,3) = m_scaling[cnt];
+      cnt++;
+    }
+    offset += nDOFs;
+  }
+
+  tools::printMatrix(_matB,fname);
+
+}
+
+
+
+
+
+void InterfaceOperatorB::printNeighboursRanks(std::string name)
+{
+
+  if (name.size()==0) name = "neighRank";
+  std::string fname = name + std::to_string(m_p_domain->GetRank()) + ".txt";
+
+  auto interfaces = m_p_domain->GetInterfaces();
+
+  std::vector<int> nghb(0);
+  for (auto& iItf : interfaces)
+  {
+    nghb.push_back(iItf.GetNeighbRank());
+  }
+
+  tools::printArray(nghb,fname);
 
 }
 
