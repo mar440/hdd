@@ -2,7 +2,7 @@
 #include "../include/linearAlgebra.hpp"
 
 #include <iostream>
-#include <mpi.h>
+//#include <mpi.h>
 #include <vtkSmartPointer.h>
 #include <vector>
 #include <vtkIdList.h>
@@ -14,7 +14,10 @@
 #include <vtkDoubleArray.h>
 #include <vtkPoints.h>
 #include <vtkPointData.h>
+#include <math.h>
 
+#include <metis.h>
+//#include "/home/mar440/usr/src/metis-5.1.0/include/metis.h"
 
 
 enum TYPE_OF_ELEMENTS {LINEAR, QUADRATIC};
@@ -24,49 +27,70 @@ TYPE_OF_ELEMENTS TypeOfElements = LINEAR;
 
 using namespace std;
 
-Mesh::Mesh()
-{
-  MPI_Comm_rank(MPI_COMM_WORLD, &m_rank);
-}
 
 Mesh::~Mesh()
 {
-  if (m_mesh)
-    m_mesh->Delete();
-
-  if (m_subdomainMesh)
-    m_subdomainMesh->Delete();
+  if (m_mesh) m_mesh->Delete();
+  if (m_subdomainMesh) m_subdomainMesh->Delete();
 
 }
 
-
-
-
-int Mesh::generateMesh(double size[], int ne[], int ns[], int nl)
+int Mesh::GenerateMesh(int _rank, boost::property_tree::ptree meshOptions)
 {
 
-// number of elements in x, y direction per subdomain
-  m_nex = ne[0];
-  m_ney = ne[1];
 
-// number of subdomains in x, y direction per subdomain
+  m_rank = _rank;
+
+
+
+
+  m_nex       = meshOptions.get<int>("numberOfElements_x",0);
+  m_ney       = meshOptions.get<int>("numberOfElements_y",0);
+  m_nsxOneSub = meshOptions.get<int>("numberOfSubdomains_x",0);
+  m_nsyOneSub = meshOptions.get<int>("numberOfSubdomains_y",0);
+  m_Lx2D      = meshOptions.get<double>("lenght_x",0);
+  m_Ly2D      = meshOptions.get<double>("lenght_y",0);
+  m_x0        = meshOptions.get<double>("shift_x",0);
+  m_y0        = meshOptions.get<double>("shift_y",0);
+  int nlevel  = meshOptions.get<int>("numberOfLevels",0);
+
+//  bool m_saveGlobalMesh = meshOptions.get<bool>("saveUndecomposedMesh",false);
+//  bool m_saveDecomposedMesh = meshOptions.get<bool>("saveEachSubdomainMesh",false);
+
+
+
+
+
+  if (m_rank == 0)
+  {
+    std::cout << "m_nex         " << m_nex        << std::endl;
+    std::cout << "m_ney         " << m_ney        << std::endl;
+    std::cout << "m_nsxOneSub   " << m_nsxOneSub  << std::endl;
+    std::cout << "m_nsyOneSub   " << m_nsyOneSub  << std::endl;
+    std::cout << "m_Lx2D        " << m_Lx2D       << std::endl;
+    std::cout << "m_Ly2D        " << m_Ly2D       << std::endl;
+    std::cout << "m_x0          " << m_x0         << std::endl;
+    std::cout << "m_y0          " << m_y0         << std::endl;
+  }
+
+
+
 // multiplied by (2^levels)
-  m_nsx = ns[0] * pow(2,nl);
-  m_nsy = ns[1] * pow(2,nl);
+  m_nsx = m_nsxOneSub * pow(2,nlevel);
+  m_nsy = m_nsyOneSub * pow(2,nlevel);
 
   std::string fname = "test.vtu";
   m_mesh = vtkUnstructuredGrid::New();
-  // vtkSmartPointer<vtkUnstructuredGrid>::New();
-  double Lx(size[0]), Ly(size[1]), x0(-1), y0(-1);
 
-  m_mesh = squareMesh(Lx,Ly, x0, y0);
+  int numberOfDiagonalStrips = 6;
+  m_mesh = squareMesh(numberOfDiagonalStrips);
 
 
   return 0;
 
 }
 
-vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, double x0, double y0)
+vtkUnstructuredGrid* Mesh::squareMesh(int numberOfDiagonalStrips)
 {
 
 
@@ -79,7 +103,7 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, double x0, doubl
   int nCells = nex2D * ney2D;
 
   std::vector<int> nodesOnBottom;
-  std::vector<int> nodesOnTop;
+  std::vector<int> nodesOnRight;
 
   vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
 
@@ -88,19 +112,19 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, double x0, doubl
 
 
   double _x, _y;
-  double dx2D = Lx2D / nex2D;
-  double dy2D = Ly2D / ney2D;
+  double dx2D = m_Lx2D / nex2D;
+  double dy2D = m_Ly2D / ney2D;
   int nPoints_ctrl = 0;
   for (int j = 0; j < ney2D + 1; j++){
     for (int i = 0; i < nex2D + 1; i++){
-      _x = i * dx2D + x0;
-      _y = j * dy2D + y0;
+      _x = i * dx2D + m_x0;
+      _y = j * dy2D + m_y0;
       points->InsertNextPoint(_x, _y, 0);
 
-      if (i == 0)
+      if (j == 0)
         nodesOnBottom.push_back(nPoints_ctrl);
       if (i == nex2D)
-        nodesOnTop.push_back(nPoints_ctrl);
+        nodesOnRight.push_back(nPoints_ctrl);
 
       nPoints_ctrl++;
 
@@ -115,14 +139,14 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, double x0, doubl
     for (int j = 0; j < 2 * ney2D + 1; j++){
       ni = nex2D + j % 2;
       for (int i = 0; i < ni; i++){
-        _x = i * dx2D + static_cast<double>((j % 2) == 0) * dx2D * 0.5 + x0;
-        _y = j * dy2D * 0.5 + y0;
+        _x = i * dx2D + static_cast<double>((j % 2) == 0) * dx2D * 0.5 + m_x0;
+        _y = j * dy2D * 0.5 + m_y0;
         points->InsertNextPoint(_x, _y, 0);
 
-        if (i == 0)
+        if (j == 0)
           nodesOnBottom.push_back(nPoints_ctrl);
         if (i == 2 * nex2D)
-          nodesOnTop.push_back(nPoints_ctrl);
+          nodesOnRight.push_back(nPoints_ctrl);
 
         nPoints_ctrl++;
       }
@@ -131,12 +155,23 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, double x0, doubl
 
 
 
-  int nDirNds = nodesOnTop.size();
-  m_DirichletDofs.resize(2 * nDirNds);
-  for (int inod = 0 ; inod < nDirNds; inod++)
+  int nDirNdsRight  = nodesOnRight.size();
+  int nDirNdsBottom = nodesOnBottom.size();
+  m_DirichletDofs.resize(2 * nDirNdsRight + 2 * nDirNdsBottom);
+
+  nPoints_ctrl = 0;
+
+  for (int inod = 0 ; inod < nDirNdsRight; inod++)
   {
-    m_DirichletDofs[2 * inod + 0] = 2 * nodesOnTop[inod] + 0;
-    m_DirichletDofs[2 * inod + 1] = 2 * nodesOnTop[inod] + 1;
+    m_DirichletDofs[2 * nPoints_ctrl + 0] = 2 * nodesOnRight[inod] + 0;
+    m_DirichletDofs[2 * nPoints_ctrl + 1] = 2 * nodesOnRight[inod] + 1;
+    nPoints_ctrl++;
+  }
+  for (int inod = 0 ; inod < nDirNdsBottom; inod++)
+  {
+    m_DirichletDofs[2 * nPoints_ctrl + 0] = 2 * nodesOnBottom[inod] + 0;
+    m_DirichletDofs[2 * nPoints_ctrl + 1] = 2 * nodesOnBottom[inod] + 1;
+    nPoints_ctrl++;
   }
 
 
@@ -228,16 +263,50 @@ vtkUnstructuredGrid* Mesh::squareMesh(double Lx2D, double Ly2D, double x0, doubl
     intArray->SetNumberOfTuples(nCells);
     intArray->FillValue(1);
     ug->GetCellData()->AddArray(intArray);
+
+    int nel = ug->GetNumberOfCells();
+    for (int ie = 0; ie < nel; ie++)
+    {
+      auto cell = ug->GetCell(ie);
+      int np = cell->GetNumberOfPoints();
+      auto cellPoints =  cell->GetPoints();
+      double xyz[] = {0,0,0};
+      for (int ip = 0 ; ip < np; ip++){
+        auto point = cellPoints->GetPoint(ip);
+        xyz[0] += point[0] / np;
+        xyz[1] += point[1] / np;
+        xyz[2] += point[2] / np;
+      }
+
+      double meanL = 0.5 * (m_Lx2D + m_Ly2D);
+      double meanXY = xyz[1] + xyz[0];
+
+      double pi = asin(1.) * 2; 
+
+      double ratio = sin(pi * meanXY  * numberOfDiagonalStrips)/ (meanL);
+
+
+      if (ratio > 0) intArray->SetTuple1(ie,1);
+      else intArray->SetTuple1(ie,0);
+    }
+
   }
 
-
+//  writeMesh(ug,"squareMesh.vtu",true);
   return ug;
 }
 
 
+void Mesh::SaveDecomposedMesh()
+{
+
+    std::string fnameVtk = "mesh_" + std::to_string(m_rank) + ".vtu";
+    writeMesh(m_subdomainMesh, fnameVtk, true);
+}
 
 void Mesh::writeMesh(vtkUnstructuredGrid *vtkVolumeMesh,
-    std::string filename, bool asciiOrBinaryVtu){
+    std::string filename, bool asciiOrBinaryVtu)
+{
 
   vtkSmartPointer<vtkXMLUnstructuredGridWriter> writer =
     vtkSmartPointer<vtkXMLUnstructuredGridWriter>::New();
@@ -352,7 +421,7 @@ void Mesh::extractSubdomainMesh()
 
 
   int nPmax = createMappingVectors();
-  int nel = m_mesh->GetNumberOfCells();
+  int numberOfGlobalCells = m_mesh->GetNumberOfCells();
   // ---------------------------------------------
 
   m_subdomainMesh = vtkUnstructuredGrid::New();
@@ -364,7 +433,7 @@ void Mesh::extractSubdomainMesh()
 
   // count cells on subdomain
   int nSubCells(0);
-  for (int iCell = 0; iCell < nel; iCell++)
+  for (int iCell = 0; iCell < numberOfGlobalCells; iCell++)
     if ((int)subId->GetTuple1(iCell) == m_rank)
       nSubCells++;
 
@@ -390,7 +459,7 @@ void Mesh::extractSubdomainMesh()
     m_subdomainMesh->GetCellData()->GetArray(GLOBAL_NUMBERING);
 
   nSubCells = 0;
-  for (int iCell = 0; iCell < nel; iCell++)
+  for (int iCell = 0; iCell < numberOfGlobalCells; iCell++)
   {
     if ((int)subId->GetTuple1(iCell) == m_rank)
     {
@@ -410,6 +479,29 @@ void Mesh::extractSubdomainMesh()
     }
   }
 
+
+  {
+    vtkSmartPointer<vtkIntArray> intArray = 
+      vtkSmartPointer<vtkIntArray>::New();
+    intArray->SetName(MATERIAL_ID);
+    intArray->SetNumberOfComponents(1);
+    intArray->SetNumberOfTuples(nSubCells);
+    intArray->FillValue(1);
+
+    int cnt(0);
+    auto MatIdGlbMesh = m_mesh->GetCellData()->GetArray(MATERIAL_ID);
+    for (int iCell = 0; iCell < numberOfGlobalCells; iCell++)
+    {
+      if ((int)subId->GetTuple1(iCell) == m_rank)
+        intArray->SetTuple1(cnt++,MatIdGlbMesh->GetTuple1(iCell));
+    }
+
+
+    m_subdomainMesh->GetCellData()->AddArray(intArray);
+  }
+
+
+
   vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
 
   int nPointsSubdomain = static_cast<int>(m_l2g.size());
@@ -423,6 +515,10 @@ void Mesh::extractSubdomainMesh()
 
   m_subdomainMesh->SetPoints(points);
 
+//  std::string fname  = "dom_";
+//  fname += std::to_string(m_rank);
+//  fname += ".vtu";
+//  writeMesh(m_subdomainMesh,fname,true);
 }
 
 
@@ -471,3 +567,139 @@ std::vector<int> Mesh::getNeighboursRanks()
   return neighboursRanks;
 
 }
+
+
+void Mesh::ddm_metis(){
+
+
+    int _nparts = 5;
+
+
+    int nSubClst = _nparts;
+
+    int nCells= m_mesh->GetNumberOfCells();
+    int nPointsLocal = m_mesh->GetNumberOfPoints();
+
+    int nPi(0);
+    std::vector<int> eptr;
+    eptr.push_back(0);
+
+//
+    int cnt = 0;
+    for (int iCell = 0; iCell < nCells; iCell++)
+    {
+      vtkCell *oneCell=
+        dynamic_cast<vtkCell*>(m_mesh->GetCell(iCell));
+      int nPi = oneCell->GetNumberOfPoints();
+      for (int ii = 0; ii < nPi; ii++)
+      {
+        cnt += nPi;
+        eptr.push_back(cnt);
+      }
+    }
+
+
+    int* eind = new int[eptr[nCells]];
+    cnt = 0;
+    int CellDim = 2;
+
+    for (int iCell = 0; iCell < nCells; iCell++)
+    {
+      vtkCell *oneCell=
+        dynamic_cast<vtkCell*>(m_mesh->GetCell(iCell));
+      int nPi = oneCell->GetNumberOfPoints();
+
+      auto innerCellPointIds = oneCell->GetPointIds();
+      for (int ii = 0; ii < nPi; ii++)
+      {
+          eind[cnt] = innerCellPointIds->GetId(ii);
+          cnt ++;
+      }
+
+    }
+
+    int ncommon = 2; /* ncommon = 2 for all other types ... */
+    if (CellDim == 2){
+        ncommon = 2;
+    }
+    else if (CellDim == 3){
+        ncommon = 3;
+    }
+
+
+    int options[METIS_NOPTIONS];
+    cout << " ----------   METIS_NOPTIONS " << METIS_NOPTIONS << endl;
+    options[METIS_OPTION_PTYPE    ] = METIS_PTYPE_RB;    // multilevel recursive bisectioning
+    options[METIS_OPTION_OBJTYPE  ] = METIS_OBJTYPE_CUT; // edge-cut minimization
+    options[METIS_OPTION_CTYPE    ] = METIS_CTYPE_RM;    // random matching
+    options[METIS_OPTION_IPTYPE   ] = METIS_IPTYPE_GROW; // grows a bisction using a greedy strategy
+    options[METIS_OPTION_RTYPE    ] = METIS_RTYPE_FM;    // FM-based cut refinement
+    options[METIS_OPTION_NCUTS    ] = 1 ;//
+    options[METIS_OPTION_NITER    ] = 10;/* Default value */
+    options[METIS_OPTION_SEED     ] = -1;/* Seed of random algo */
+    options[METIS_OPTION_UFACTOR  ] = 1;
+    options[METIS_OPTION_NUMBERING] = 0; // C-style numbering
+    options[METIS_OPTION_DBGLVL   ] = METIS_DBG_INFO;
+    options[METIS_OPTION_CONTIG   ] = 1;
+
+    int nparts = 1;
+    int objval;
+
+
+    if (_nparts > 0 ){
+       nparts = _nparts;
+    }
+
+    int *epart = new int [nCells];
+    int *npart = new int [eptr[nCells]];
+
+
+    if (nparts > 1){
+        METIS_PartMeshDual(&nCells,    // number of elements in the mesh       Y
+                           &nPointsLocal,   //                                      Y
+                           eptr.data(),     //                                      Y
+                           eind,            //                                      Y
+                           (int *)NULL,     // vwgt                                 Y
+                           (int *)NULL,     // vsize                                Y
+                           &ncommon,        //                                      Y
+                           &nparts,         //                                      N
+                           (real_t*)NULL,   // tpwgts                               Y
+                           options,         //                                      Y
+                           &objval,         //                                      Y
+                           epart,           //                                      N
+                           npart);          //                                      Y
+    }
+    else {
+        for (int i = 0; i < nCells; i++)
+            epart[i] = 0;
+
+    }
+
+
+
+
+  auto subId = m_mesh->GetCellData()->GetArray(SUBDOMAIN_ID);
+
+
+  // count cells on subdomain
+  for (int iCell = 0; iCell < nCells; iCell++)
+    subId->SetTuple1(iCell,epart[iCell]);
+
+
+    delete [] epart;
+    delete [] npart;
+//    delete [] eptr;
+    delete [] eind;
+
+}
+
+
+
+
+
+
+
+
+
+
+
