@@ -75,13 +75,49 @@ namespace tools
         myfile << std::setprecision(16);
         for (int indJ = 0; indJ < mat.rows(); indJ++) {
           for (SpMat::InnerIterator it(mat, indJ); it; ++it) {
-            myfile << it.row() + 1 << " " << it.col() + 1 << " " << it.value() << "\n";
+            myfile << it.row() + 1 << " " << it.col() + 1 << " " <<
+              std::setprecision(16) << it.value() << "\n";
           }
         }
         myfile.close();
       }
     }
 
+  }
+
+  void printMatrix(const Eigen::MatrixXd& mat,std::string fname){
+    {
+      std::ofstream myfile(fname);
+      if (myfile.is_open())
+      {
+        for (int row = 0; row < mat.rows(); row ++)
+        {
+          for (int col = 0; col < mat.cols(); col++)
+          {
+            myfile << std::setprecision(16)<<  mat(row,col) << "\t";
+          }
+          myfile << "\n";
+        }
+        myfile.close();
+      }
+    }
+
+  }
+
+
+//  template<typename T>
+    void printArray(std::vector<int>& input, std::string fname)
+  {
+    std::ofstream myfile(fname);
+    if (myfile.is_open())
+    {
+      for (int dof = 0; dof < (int)input.size(); dof ++)
+      {
+          myfile << std::setprecision(16)<<  input[dof] << "\t";
+      }
+      myfile << "\n";
+      myfile.close();
+    }
   }
 
 

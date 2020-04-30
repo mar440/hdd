@@ -19,8 +19,11 @@ namespace linalg {
 namespace tools {
 
   void printMatrix(const SpMat& mat,std::string fname);
+  void printMatrix(const Eigen::MatrixXd& mat,std::string fname);
   std::vector<int> intersection(
       std::vector<int> v1, std::vector<int> v2);
+//  template<typename T>
+    void printArray(std::vector<int>& input, std::string fname);
 }
 
 
