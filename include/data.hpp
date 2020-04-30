@@ -10,6 +10,8 @@
 #include "interfaceOperatorB.hpp"
 #include "interfaceOperatorG.hpp"
 #include "solver.hpp"
+#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <iostream>
 #include <fstream>
@@ -33,8 +35,10 @@ class Data{
     InterfaceOperatorB* GetInterfaceOperatorB(){return m_p_interfaceOperatorB;}
     void Solve(Eigen::VectorXd&);
     void Finalize();
+    void ParseJsonFile(std::string path2file);
 //    InterfaceOperatorG* GetInterfaceOperatorG(){return m_p_interfaceOperatorG;}
-
+    boost::property_tree::ptree GetChild(std::string _s0){return m_root.get_child(_s0);}
+//
 
 
   private:
@@ -59,7 +63,10 @@ class Data{
     std::streambuf* m_p_sbuf;
     std::streambuf* m_p_backup;
     std::ofstream m_filestr;
- 
+
+    void _dumpTxtFiles(Eigen::VectorXd&);
+    boost::property_tree::ptree m_root;
+    int m_verboseLevel;
 
 
 

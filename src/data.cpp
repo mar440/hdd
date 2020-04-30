@@ -1,15 +1,17 @@
 #include "../include/data.hpp"
 #include "../include/element.hpp"
 #include "../include/linearAlgebra.hpp"
+#include "../include/stiffnessMatrix.hpp"
+
 #include <vtkCell.h>
 #include <string>
-#include "../include/stiffnessMatrix.hpp"
 
 
 
 using namespace std;
 using namespace Eigen;
 
+namespace pt = boost::property_tree;
 
 
 Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
@@ -36,10 +38,6 @@ Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
   std::cout << "++++++++++++++++++++++++\n";
   std::cout << "SUBDOMAIN id. " << m_mpiRank << "\n";
   std::cout << "++++++++++++++++++++++++\n\n";
-
-
-
-
 }
 
 Data::~Data()
@@ -69,20 +67,28 @@ void Data::FinalizeSymbolicAssembling()
   m_domain.SetMappingLoc2Glb(m_container);
   m_container.clear();
   m_container.shrink_to_fit();
-
-
   //
   m_domain.SetInterfaces();
   m_p_interfaceOperatorB = new InterfaceOperatorB(&m_domain);
-  //m_p_interfaceOperatorG = new InterfaceOperatorG(&m_domain);
 
 
-#if DBG>5
-  m_dbg_printStats();
-#endif
+  if (m_verboseLevel>0) m_dbg_printStats();
 
-  m_domain.InitStiffnessMatrix();
 
+  std::string precondType =
+    m_root.get<std::string>("solver.preconditioner");
+  
+  PRECONDITIONER_TYPE _precondType;
+  if (precondType == "Dirichlet")
+    _precondType = DIRICHLET;
+  else if  (precondType == "Lumped")
+    _precondType = LUMPED;
+  else if  (precondType == "none")
+    _precondType = NONE;
+  else
+    std::runtime_error("Unknown preconditioner type");
+
+  m_domain.InitStiffnessMatrix(_precondType);
 
 }
 
@@ -100,7 +106,6 @@ void Data::NumericAssembling(std::vector<int>& glbIds,
 void Data::FinalizeNumericAssembling()
 {
 
-
   // DIRICHLET BOUNDARY CONDTION
   if (m_DirichletGlbDofs.size() == 0)
     std::runtime_error("Dirichlet BC must be provided \
@@ -108,10 +113,8 @@ void Data::FinalizeNumericAssembling()
 
   m_domain.SetDirichletDOFs(m_DirichletGlbDofs);
 
-
   // ASSEMBLE & FACTORIZE LINEAR OPERATOR
   m_domain.GetStiffnessMatrix()->FinalizeNumericPart(m_domain.GetDirichletDOFs());
-
 
   // DIRICHLET PRECONDITIONER
   m_domain.HandlePreconditioning();
@@ -155,19 +158,19 @@ void Data::m_SetKernelNumbering()
   m_container.resize(m_mpiSize,m_domain.GetStiffnessMatrix()->GetDefect());
 
 
-#if DBG > 2
+if (m_verboseLevel>2) {
   for (auto& iw : m_container) std::cout<< iw << ' ';
   std::cout << '\n';
-#endif
+}
   MPI_Alltoall(
       m_container.data(),1,MPI_INT,
       m_defectPerSubdomains.data(),1,MPI_INT,
       *m_pcomm);
 
-#if DBG > 2
+if (m_verboseLevel>2) {
   for (auto& iw : m_defectPerSubdomains) std::cout<< iw << ' ';
   std::cout << '\n';
-#endif
+}
 
   m_container.resize(0);
   m_container.shrink_to_fit();
@@ -185,8 +188,28 @@ void Data::Solve(Eigen::VectorXd& solution)
   else
     std::cout << "Iterative solver didn't finish successfully.\n";
 
+  auto dbgOpts = GetChild("outputs");
+
+  int dumpMatrices = dbgOpts.get<double>("dumpMatrices ",0);
+
+  if (dumpMatrices!=0) _dumpTxtFiles(solution);
+
 }
 
+
+
+void Data::_dumpTxtFiles(Eigen::VectorXd& solution)
+{
+  m_domain.GetStiffnessMatrix()->PrintStiffnessMatrix("K_");
+  m_domain.GetStiffnessMatrix()->PrintKernel("R_");
+  m_domain.GetStiffnessMatrix()->PrintRHS("f_");
+  m_domain.GetStiffnessMatrix()->PrintNullPivots("nullPivots_");
+  m_p_interfaceOperatorB->printInterfaceDOFs("B_");
+  m_p_interfaceOperatorB->printNeighboursRanks("neighbRanks_");
+
+  std::string fname = "solution_" + std::to_string(m_mpiRank) + ".txt";
+  tools::printMatrix(solution,fname);
+}
 
 
 
@@ -369,5 +392,58 @@ void Data::m_dbg_printStats()
   }
   std::cout << " *" << std::endl;
 
+
+}
+
+//{
+//    "solver" :
+//    {
+//        "preconditioner" : "Dirichlet",
+//        "stopingCriteria" : 1e-4,
+//        "maxNumbIter" : 200
+//    },
+//    "meshgenerator" :
+//    {
+//        "numberOfElements_x" : 10,
+//        "numberOfElements_y" : 10,
+//        "numberOfDomains_x" : 3,
+//        "numberOfDomains_y" : 3,
+//        "lenght_x" : 3,
+//        "lenght_y" : 3,
+//        "numberOfLevels" : 3
+//    }
+//}
+//  std::cout << "PJ: in parser" << std::endl;
+//
+//// Short alias for this namespace
+//
+//// Create a root
+//  pt::ptree m_root;
+//
+//// Load the json file in this ptree
+//  pt::read_json(path2file, root);
+//
+//
+//  // Read values
+//  int height = root.get<int>("height", 0);
+//  std::cout << "PJ: height: " << height << std::endl;
+//  // You can also go through nested nodes
+//  std::string msg = root.get<std::string>("some.complex.path");
+//  std::cout << "PJ: msg: " << msg<< std::endl;
+
+
+
+void Data::ParseJsonFile(std::string path2file)
+{
+
+  std::cout << "parsing \"hddConf.json\" file\n";
+  pt::read_json(path2file, m_root);
+
+  m_verboseLevel = m_root.get<int>("outputs.verbose",0);
+
+//  std::string precond = m_root.get<std::string>("solver.preconditioner");
+//  std::cout << "preconditioner: " << precond << std::endl;
+//  int nx = m_root.get<int>("meshgenerator.numberOfElements_x",0);
+//  std::cout << "meshgenerator.numberOfElements_x: " << nx << std::endl;
 
 }
