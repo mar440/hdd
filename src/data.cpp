@@ -77,16 +77,20 @@ void Data::FinalizeSymbolicAssembling()
 
   std::string precondType =
     m_root.get<std::string>("solver.preconditioner");
-  
+
   PRECONDITIONER_TYPE _precondType;
+
   if (precondType == "Dirichlet")
     _precondType = DIRICHLET;
-  else if  (precondType == "Lumped")
+  else if (precondType == "Lumped")
     _precondType = LUMPED;
-  else if  (precondType == "none")
+  else if (precondType == "none")
     _precondType = NONE;
   else
+  {
+    _precondType = NONE;
     std::runtime_error("Unknown preconditioner type");
+  }
 
   m_domain.InitStiffnessMatrix(_precondType);
 
@@ -188,9 +192,7 @@ void Data::Solve(Eigen::VectorXd& solution)
   else
     std::cout << "Iterative solver didn't finish successfully.\n";
 
-  auto dbgOpts = GetChild("outputs");
-
-  int dumpMatrices = dbgOpts.get<double>("dumpMatrices ",0);
+  int dumpMatrices = m_root.get<int>("outputs.dumpMatrices",0);
 
   if (dumpMatrices!=0) _dumpTxtFiles(solution);
 
