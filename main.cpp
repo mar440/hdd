@@ -7,29 +7,11 @@
 #include "include/element.hpp"
 #include "include/linearAlgebra.hpp"
 #include "include/domain.hpp"
+#include "include/types.hpp"
 
 #include <vtkCell.h>
 #include <vtkIntArray.h>
 #include <vtkCellData.h>
-
-
-
-//std::vector <>;
-
-
-//{ "NAME_OF_PARAM  ","TYPE"  , "VALUE" , "      DESCRIPTION      " }
-
-static std::vector<std::vector<std::string>> default_params = {
-  { "preconditioner", "string", "lumped", "type of preconditioning"},
-  { "nex",           "int"    ,  "15"    , "number of elements in x dir" },
-  { "ney",           "int"    ,  "15"    , "number of elements in y dir" },
-  { "nsx",           "int"    ,  "5"     , "number of subdomains in x dir" },
-  { "nsy",           "int"    ,  "5"     , "number of subdomains in y dir" },
-  { "Lx",            "double" ,  "8"     , "lenght in x dir." },
-  { "Ly",            "double" ,  "8"     , "lenght in y dir." },
-  { "nLevels",       "int"    ,  "0"     , "for hierarchical decomp." },
-};
-
 
 
 
@@ -45,28 +27,24 @@ int main(int argc, char **argv)
   int rank;
 
   MPI_Comm_rank(comm, &rank);
-
+//## HDD ##  
+//# initialize library (copy mpi_comm)
+  Data dataH(&comm);
+  dataH.ParseJsonFile("../hddConf.json");
 
 //////////////////////
-// Build-in mesher and
+// Built-in mesher and
 // assembler of A*x=b
   Mesh mesh;
   {
-    // global mesh
-    int n_elements[] = {5,5};
-    int n_subdomains[] = {2,2};
-    int n_levels = 0;
-    double size[] = {0.8,0.8};
     // build-in generator
-    mesh.generateMesh(size, n_elements, n_subdomains, n_levels);
+    auto meshOpts = dataH.GetChild("builtInTestCaseSetting.mesh");
+    mesh.GenerateMesh(rank,meshOpts);
   }
 
 // decomposition
   mesh.extractSubdomainMesh();
 
-//## HDD ##  
-//# initialize library (copy mpi_comm)
-  Data dataH(&comm);
 
   // TODO make it inside the HDD library
   dataH.GetDomain()->SetNeighboursRanks(mesh.getNeighboursRanks());
@@ -78,6 +56,7 @@ int main(int argc, char **argv)
     auto glbNum = subMesh->GetCellData()->GetArray(GLOBAL_NUMBERING);
     int nElemeSubdomain = subMesh->GetNumberOfCells();
     int nP = subMesh->GetCell(0)->GetNumberOfPoints();
+
     std::vector<int> glbIds;
     glbIds.resize(2 * nP);
 
@@ -110,13 +89,26 @@ int main(int argc, char **argv)
     auto glbNum = subMesh->GetCellData()->GetArray(GLOBAL_NUMBERING);
     int nElemeSubdomain = subMesh->GetNumberOfCells();
     int nP = subMesh->GetCell(0)->GetNumberOfPoints();
+
+    std::cout << "np: " << nP << '\n';
+
     std::vector<int> glbIds;
     glbIds.resize(2 * nP);
 
     MatrixXd K_loc;
     VectorXd f_loc;
-    double mat_E_mu_rho[3] = {1.0, 0.3, 1.0};
 
+
+    auto matOpts = dataH.GetChild("builtInTestCaseSetting.material");
+
+    double mat_E0     = matOpts.get<double>("YoungsModulus",0);
+    double mat_mu     = matOpts.get<double>("poissonRatio",0);
+    double mat_rho    = matOpts.get<double>("density",0);
+    double mat_ratio  = matOpts.get<double>("ratio",0);
+
+
+
+    auto MatId = subMesh->GetCellData()->GetArray(MATERIAL_ID);
     for (int iE = 0; iE < nElemeSubdomain; iE++)
     {
       auto cell = subMesh->GetCell(iE);
@@ -132,6 +124,14 @@ int main(int argc, char **argv)
         default:
           continue;
       }
+
+      int matLabel = MatId->GetTuple1(iE);
+
+      double weight = (mat_ratio - 1.0) * matLabel + 1.0;
+
+      double YoungModulus = mat_E0 * weight;
+      double rho = mat_rho * weight;
+      double mat_E_mu_rho[3] = {YoungModulus, mat_mu, rho};
 
       element->assembly_elasticity(K_loc, f_loc, cell, mat_E_mu_rho);
 
@@ -171,29 +171,21 @@ int main(int argc, char **argv)
   dataH.Solve(solution);
 
 
-
-  mesh.addSolution(mesh.getSubdomainMesh(),solution);
-
+  auto otpOpts = dataH.GetChild("outputs.builtInTestCase");
+  bool saveBuiltInMesh = otpOpts.get<bool>("saveEachSubdomainMesh",false);
+  std::cout << "saveBuiltInMes: " << saveBuiltInMesh << '\n';
+  if (saveBuiltInMesh)
   {
-    std::string fnameVtk = "mesh_" + std::to_string(rank) + ".vtu";
-    mesh.writeMesh(mesh.getSubdomainMesh(), fnameVtk, true);
+    mesh.addSolution(mesh.getSubdomainMesh(),solution);
+    mesh.SaveDecomposedMesh();
   }
 
 
-
-//  std::string fnameVtk = "mesh_" + std::to_string(rank) + ".vtu";
-//  mesh.writeMesh(mesh.getSubdomainMesh(), fnameVtk, true);
-//
-//  if (rank == 0)
-//  {
-//    fnameVtk = "globalMesh.vtu";
-//    mesh.writeMesh(mesh.getGlobalMesh(), fnameVtk, true);
-//  }
-
+//## HDD ##
+//# finalizing 
   dataH.Finalize();
 
   MPI_Comm_free(&comm);
-
   MPI_Finalize();
 
   return 0;
