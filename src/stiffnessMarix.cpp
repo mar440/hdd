@@ -7,7 +7,7 @@
 #include <Eigen/Householder>
 
 StiffnessMatrix::StiffnessMatrix(
-    std::map<int,int>* pg2l,int my_rank)
+    std::map<int,int>* pg2l,int my_rank, PRECONDITIONER_TYPE precondType)
 {
 
   m_pg2l = pg2l;
@@ -22,15 +22,11 @@ StiffnessMatrix::StiffnessMatrix(
   m_neq = m_pg2l->size();
   m_rhs.resize(0);
   //m_preconditionerType = LUMPED;
-  m_preconditionerType = DIRICHLET;
+  m_preconditionerType = precondType;
 
   m_K_IB.resize(0,0);
   m_K_BI.resize(0,0);
   m_K_BB.resize(0,0);
-
-  //m_preconditionerType = NONE;
-
-//    SetDirichletPrecond();
 
 
 }
@@ -179,7 +175,7 @@ void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
 #endif
 
 #if DBG>3
-  m_dbg_printStiffnessMatrix(m_spmatK);
+  PrintStiffnessMatrix(m_spmatK);
 #endif
 
 }
@@ -551,12 +547,12 @@ typedef int  eslocal;
     qr.matrixQ() * Eigen::MatrixXd::Identity(kerK.rows(), kerK.cols());
 
 
-#if DBG > 2
+#if DBG > 1
   auto col_rank = qr.rank();
-  std::cout << "Q.dim = " <<  Q.rows() << ' ' << Q.cols() << '\n';
+  std::cout << "R.rows(), R.cols(): [" <<  Q.rows() << ", " << Q.cols() << "]\n";
   std::cout << "rank = " << col_rank << '\n';
   auto KQ = K * Q;
-  std::cout << "|| K * Q || "  << KQ.norm() << std::endl;
+  std::cout << "|| K * R || "  << KQ.norm() << std::endl;
 
 #endif
   return Q;
@@ -691,24 +687,52 @@ void StiffnessMatrix::SetDirichletPrecond(
   m_pardisoSolverDirichlet_KII.factorize(K_II);
 
 #if DBG > 4
-  m_dbg_printStiffnessMatrix(K_II,"K_II");
-  m_dbg_printStiffnessMatrix(m_K_IB,"K_IB");
-  m_dbg_printStiffnessMatrix(m_K_BI,"K_BI");
-  m_dbg_printStiffnessMatrix(m_K_BB,"K_BB");
-  m_dbg_printStiffnessMatrix(m_spmatK,"m_spmatK");
-  m_dbg_printStiffnessMatrix(Kcopy,"Kcopy");
+  PrintStiffnessMatrix(K_II,"K_II");
+  PrintStiffnessMatrix(m_K_IB,"K_IB");
+  PrintStiffnessMatrix(m_K_BI,"K_BI");
+  PrintStiffnessMatrix(m_K_BB,"K_BB");
+  PrintStiffnessMatrix(m_spmatK,"m_spmatK");
+  PrintStiffnessMatrix(Kcopy,"Kcopy");
 #endif
 
 }
 
 
 // dbg##############################################
-void StiffnessMatrix::m_dbg_printStiffnessMatrix(const SpMat& spmat,
+void StiffnessMatrix::PrintStiffnessMatrix(const SpMat& spmat,
     std::string name)
 {
   if (name.size()==0) name = "matK";
   std::string fname = name + std::to_string(m_myrank) + ".txt";
   tools::printMatrix(spmat,fname);
+}
+
+void StiffnessMatrix::PrintStiffnessMatrix(std::string name)
+{
+  if (name.size()==0) name = "matK";
+  std::string fname = name + std::to_string(m_myrank) + ".txt";
+  tools::printMatrix(m_spmatK,fname);
+}
+
+void StiffnessMatrix::PrintKernel(std::string name)
+{
+  if (name.size()==0) name = "matR";
+  std::string fname = name + std::to_string(m_myrank) + ".txt";
+  tools::printMatrix(m_kerK,fname);
+}
+
+void StiffnessMatrix::PrintRHS(std::string name)
+{
+  if (name.size()==0) name = "vecF";
+  std::string fname = name + std::to_string(m_myrank) + ".txt";
+  tools::printMatrix(m_rhs,fname);
+}
+
+void StiffnessMatrix::PrintNullPivots(std::string name)
+{
+  if (name.size()==0) name = "vecF";
+  std::string fname = name + std::to_string(m_myrank) + ".txt";
+  tools::printArray(m_nullPivots,fname);
 }
 
 void StiffnessMatrix::m_dbg_printStiffnessMatrixSingularValues()

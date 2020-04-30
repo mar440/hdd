@@ -12,7 +12,8 @@ class StiffnessMatrix
 {
 
   public:
-    StiffnessMatrix(std::map<int,int>* pg2l,int rank);
+    StiffnessMatrix(std::map<int,int>* pg2l,int rank,
+        PRECONDITIONER_TYPE);
     ~StiffnessMatrix(){}
 
 
@@ -30,6 +31,11 @@ class StiffnessMatrix
     void Precond(const Eigen::MatrixXd&, Eigen::MatrixXd&);
     void SetDirichletPrecond(std::vector<int>& I_DOFs, 
         std::vector<int>& B_DOFs);
+    void PrintStiffnessMatrix(const SpMat&,std::string="");
+    void PrintStiffnessMatrix(std::string);
+    void PrintKernel(std::string);
+    void PrintRHS(std::string);
+    void PrintNullPivots(std::string);
 
   private:
     Eigen::MatrixXd m_kerK;
@@ -54,7 +60,6 @@ class StiffnessMatrix
 
 //DBG ##########
 //
-  void m_dbg_printStiffnessMatrix(const SpMat&,std::string="");
   void m_dbg_printStiffnessMatrixSingularValues();
   PRECONDITIONER_TYPE m_preconditionerType;
 
