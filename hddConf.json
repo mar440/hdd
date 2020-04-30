@@ -1,0 +1,42 @@
+{
+    "solver" :
+    {
+        "preconditioner" : "Dirichlet",
+        "stopingCriteria" : 1e-4,
+        "maxNumbIter" : 200
+    },
+    "outputs" :
+    {
+      "verbose" : 0,
+      "dumpMatrices" : 1,
+      "verboseLevel" : 1,
+      "builtInTestCase":
+      {
+        "saveEachSubdomainMesh" : 1,
+        "saveUndecomposedMesh" :-1 
+      }
+    },
+    "builtInTestCaseSetting":
+    {
+      "mesh" :
+      {
+        "numberOfElements_x" : 8,
+        "numberOfElements_y" : 8,
+        "numberOfSubdomains_x" : 2,
+        "numberOfSubdomains_y" : 2,
+        "lenght_x" : 3.2,
+        "lenght_y" : 1.1,
+        "shift_x" : 0.31,
+        "shift_y" : 0.32,
+        "numberOfLevels" : 0
+      },
+      "material" :
+      {
+        "YoungsModulus" : 1.0,
+        "poissonRatio" : 0.3,
+        "density" : 1.0,
+        "ratio": 1e2
+      }
+    }
+}
+
