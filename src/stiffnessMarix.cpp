@@ -638,13 +638,14 @@ void StiffnessMatrix::ApplyDirichletBC(SpMat& spmat, std::vector<int> dirInd){
   Eigen::VectorXd diagMat = spmat.diagonal();
   double meanVal = diagMat.sum() / diagMat.size();
 
+  double rho = 1e4;
   for (int iD = 0; iD < static_cast<int>(dirInd.size()); iD++)
   {
     int kD = dirInd[iD];
     for (SpMat::InnerIterator it(spmat, kD); it; ++it)
     {
       if (it.row() == it.col())
-        it.valueRef() = meanVal;
+        it.valueRef() = rho *  meanVal;
       else
         it.valueRef() = 0;
     }
