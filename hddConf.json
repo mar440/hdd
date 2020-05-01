@@ -1,8 +1,8 @@
 {
     "solver" :
     {
-        "preconditioner" : "Dirichlet",
-        "stopingCriteria" : 1e-4,
+        "preconditioner" : "Lumped",
+        "stopingCriteria" : 1e-7,
         "maxNumbIter" : 200
     },
     "outputs" :
@@ -20,8 +20,10 @@
     {
       "mesh" :
       {
-        "numberOfElements_x" : 8,
-        "numberOfElements_y" : 8,
+        "numberOfStrips" : 1,
+        "typeOfElement" : "lin",
+        "numberOfElements_x" : 1,
+        "numberOfElements_y" : 1,
         "numberOfSubdomains_x" : 2,
         "numberOfSubdomains_y" : 2,
         "lenght_x" : 3.2,
@@ -35,7 +37,7 @@
         "YoungsModulus" : 1.0,
         "poissonRatio" : 0.3,
         "density" : 1.0,
-        "ratio": 1e2
+        "ratio": 1e4
       }
     }
 }
