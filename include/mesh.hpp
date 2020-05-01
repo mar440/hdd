@@ -7,6 +7,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "types.hpp"
+enum TYPE_OF_ELEMENT {LINEAR, QUADRATIC};
 
 class vtkUnstructuredGrid;
 class Data;
@@ -14,11 +15,11 @@ class Data;
 class Mesh
 {
   public:
-    Mesh(){}
+    Mesh(): m_typeOfElement(LINEAR){}
     ~Mesh();
     void print();
     int GenerateMesh(int rank, boost::property_tree::ptree);
-    vtkUnstructuredGrid* squareMesh(int);
+    vtkUnstructuredGrid* squareMesh();
     void writeMesh(vtkUnstructuredGrid *vtkVolumeMesh,
         std::string filename, bool asciiOrBinaryVtu);
 
@@ -28,11 +29,12 @@ class Mesh
     std::vector<int> getNeighboursRanks();
 
 
-    void extractSubdomainMesh();
+    void ExtractSubdomainMesh();
     int createMappingVectors();
     vtkUnstructuredGrid* getGlobalMesh(){return m_mesh;}
     vtkUnstructuredGrid* getSubdomainMesh(){return m_subdomainMesh;}
     void SaveDecomposedMesh();
+    void DomainDecomposition();
 
   private:
       vtkUnstructuredGrid* m_mesh;
@@ -44,9 +46,10 @@ class Mesh
       int m_nsxOneSub, m_nsyOneSub;
       int m_nlx, m_nly;
       int m_rank;
+      int m_numbOfStrips;
       std::vector<int> m_DirichletDofs;
       std::vector<int> m_l2g;
       std::map<int,int>m_g2l;
-      void ddm_metis();
+      TYPE_OF_ELEMENT m_typeOfElement;
 
 };

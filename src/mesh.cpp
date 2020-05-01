@@ -20,10 +20,7 @@
 //#include "/home/mar440/usr/src/metis-5.1.0/include/metis.h"
 
 
-enum TYPE_OF_ELEMENTS {LINEAR, QUADRATIC};
 
-TYPE_OF_ELEMENTS TypeOfElements = LINEAR;
-//TYPE_OF_ELEMENTS TypeOfElements = QUADRATIC;
 
 using namespace std;
 
@@ -43,19 +40,24 @@ int Mesh::GenerateMesh(int _rank, boost::property_tree::ptree meshOptions)
 
 
 
+  m_numbOfStrips    = meshOptions.get<double>("numberOfStrips",3);
 
-  m_nex       = meshOptions.get<int>("numberOfElements_x",0);
-  m_ney       = meshOptions.get<int>("numberOfElements_y",0);
-  m_nsxOneSub = meshOptions.get<int>("numberOfSubdomains_x",0);
-  m_nsyOneSub = meshOptions.get<int>("numberOfSubdomains_y",0);
-  m_Lx2D      = meshOptions.get<double>("lenght_x",0);
-  m_Ly2D      = meshOptions.get<double>("lenght_y",0);
-  m_x0        = meshOptions.get<double>("shift_x",0);
-  m_y0        = meshOptions.get<double>("shift_y",0);
-  int nlevel  = meshOptions.get<int>("numberOfLevels",0);
+  m_nex             = meshOptions.get<int>("numberOfElements_x",0);
+  m_ney             = meshOptions.get<int>("numberOfElements_y",0);
+  m_nsxOneSub       = meshOptions.get<int>("numberOfSubdomains_x",0);
+  m_nsyOneSub       = meshOptions.get<int>("numberOfSubdomains_y",0);
+  m_Lx2D            = meshOptions.get<double>("lenght_x",0);
+  m_Ly2D            = meshOptions.get<double>("lenght_y",0);
+  m_x0              = meshOptions.get<double>("shift_x",0);
+  m_y0              = meshOptions.get<double>("shift_y",0);
+  int nlevel        = meshOptions.get<int>("numberOfLevels",0);
+  std::string st0   = meshOptions.get<string>("typeOfElement");
+  
+  if (st0 == "linear")    m_typeOfElement = LINEAR;
+  else if (st0 == "quad") m_typeOfElement = QUADRATIC;
+  else
+    std::runtime_error("typeOfElement may be \"linear\" or \"quad\"");
 
-//  bool m_saveGlobalMesh = meshOptions.get<bool>("saveUndecomposedMesh",false);
-//  bool m_saveDecomposedMesh = meshOptions.get<bool>("saveEachSubdomainMesh",false);
 
 
 
@@ -82,20 +84,15 @@ int Mesh::GenerateMesh(int _rank, boost::property_tree::ptree meshOptions)
   std::string fname = "test.vtu";
   m_mesh = vtkUnstructuredGrid::New();
 
-  int numberOfDiagonalStrips = 6;
-  m_mesh = squareMesh(numberOfDiagonalStrips);
+  m_mesh = squareMesh();
 
 
   return 0;
 
 }
 
-vtkUnstructuredGrid* Mesh::squareMesh(int numberOfDiagonalStrips)
+vtkUnstructuredGrid* Mesh::squareMesh()
 {
-
-
-
-
 
   int nex2D = m_nex * m_nsx;
   int ney2D = m_ney * m_nsy;
@@ -133,7 +130,7 @@ vtkUnstructuredGrid* Mesh::squareMesh(int numberOfDiagonalStrips)
 
   int nnodsBasicGrid = nPoints_ctrl;
 
-  if (TypeOfElements == QUADRATIC)
+  if (m_typeOfElement == QUADRATIC)
   {
     int ni;
     for (int j = 0; j < 2 * ney2D + 1; j++){
@@ -181,7 +178,7 @@ vtkUnstructuredGrid* Mesh::squareMesh(int numberOfDiagonalStrips)
   ug->Allocate(nCells, 1);
 
 
-  if (TypeOfElements == LINEAR)
+  if (m_typeOfElement == LINEAR)
     quad_ids->Allocate(4, 0);
   else
     quad_ids->Allocate(8, 0);
@@ -218,7 +215,7 @@ vtkUnstructuredGrid* Mesh::squareMesh(int numberOfDiagonalStrips)
               for (int ii = 0; ii < (int)tmp_vec.size(); ii++)
                 quad_ids->InsertId(ii, tmp_vec[ii] + (nex2D + 1) * ey);
 
-              if (TypeOfElements == LINEAR)
+              if (m_typeOfElement == LINEAR)
               {
                 ug->InsertNextCell(VTK_QUAD, quad_ids);
               }
@@ -283,7 +280,7 @@ vtkUnstructuredGrid* Mesh::squareMesh(int numberOfDiagonalStrips)
 
       double pi = asin(1.) * 2; 
 
-      double ratio = sin(pi * meanXY  * numberOfDiagonalStrips)/ (meanL);
+      double ratio = sin(pi * meanXY  * m_numbOfStrips)/ (meanL);
 
 
       if (ratio > 0) intArray->SetTuple1(ie,1);
@@ -416,7 +413,7 @@ int Mesh::createMappingVectors()
 }
 
 
-void Mesh::extractSubdomainMesh()
+void Mesh::ExtractSubdomainMesh()
 {
 
 
@@ -569,13 +566,11 @@ std::vector<int> Mesh::getNeighboursRanks()
 }
 
 
-void Mesh::ddm_metis(){
+void Mesh::DomainDecomposition()
+{
 
 
-    int _nparts = 5;
-
-
-    int nSubClst = _nparts;
+    int _nparts = m_nsx * m_nsy;
 
     int nCells= m_mesh->GetNumberOfCells();
     int nPointsLocal = m_mesh->GetNumberOfPoints();
@@ -590,7 +585,7 @@ void Mesh::ddm_metis(){
     {
       vtkCell *oneCell=
         dynamic_cast<vtkCell*>(m_mesh->GetCell(iCell));
-      int nPi = oneCell->GetNumberOfPoints();
+      nPi = oneCell->GetNumberOfPoints();
       for (int ii = 0; ii < nPi; ii++)
       {
         cnt += nPi;
@@ -607,7 +602,7 @@ void Mesh::ddm_metis(){
     {
       vtkCell *oneCell=
         dynamic_cast<vtkCell*>(m_mesh->GetCell(iCell));
-      int nPi = oneCell->GetNumberOfPoints();
+      nPi = oneCell->GetNumberOfPoints();
 
       auto innerCellPointIds = oneCell->GetPointIds();
       for (int ii = 0; ii < nPi; ii++)
@@ -685,11 +680,11 @@ void Mesh::ddm_metis(){
   for (int iCell = 0; iCell < nCells; iCell++)
     subId->SetTuple1(iCell,epart[iCell]);
 
+  writeMesh(m_mesh,"squareMesh_metis.vtu",true);
 
-    delete [] epart;
-    delete [] npart;
-//    delete [] eptr;
-    delete [] eind;
+  delete [] epart;
+  delete [] npart;
+  delete [] eind;
 
 }
 
