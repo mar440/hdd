@@ -2,3 +2,4 @@
 build/*
 *.session
 *nohup.out
+__pycache__
