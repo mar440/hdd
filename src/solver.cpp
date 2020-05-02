@@ -2,8 +2,12 @@
 #include "../include/types.hpp"
 #include "../include/data.hpp"
 #include "../include/domain.hpp"
-#include <iostream>
 #include "../include/stiffnessMatrix.hpp"
+
+#include <iostream>
+#include <chrono>
+
+
 
 
 using namespace std;
@@ -13,7 +17,7 @@ bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
 {
 
 
-
+  auto startTime = std::chrono::steady_clock::now();
 
   auto solverOpts = data.GetChild("solver");
   int verboseLevel = data.GetChild("outputs").get<int>("verbose");
@@ -244,6 +248,16 @@ bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
 
   // copy solution to inout array
   _solution = solution;
+
+
+
+
+    auto endTime = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds = endTime-startTime;
+    std::cout << std::fixed << std::setprecision(2) << 
+      "Solver time: " << elapsed_seconds.count() << " s\n";
+
+
 
   return true;
 
