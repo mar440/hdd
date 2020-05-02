@@ -1,6 +1,8 @@
 #include "../include/domain.hpp"
 #include <iostream>
 #include <math.h>
+#include <set>
+#include <map>
 
 #include "../include/linearAlgebra.hpp"
 #include "../include/stiffnessMatrix.hpp"
@@ -103,26 +105,199 @@ void Domain::m_dbg_printNeighboursRanks()
 }
 
 
+void Domain::_SearchNeighbours(std::vector<int>& inout)
+{
+
+  // get max DOF index in global numbering
+  auto maxDofIndOnDomain =
+    max_element(m_l2g.begin(), m_l2g.end());
+
+  int maxDofInd = *maxDofIndOnDomain;
+  hmpi.GlobalInt(&maxDofInd,1,MPI_MAX);
+  if (m_mpirank == 0) std::cout << "maxDofInd: " << maxDofInd<< '\n';
+
+  std::vector<int> multiplicity(maxDofInd,0);
+
+  for (auto& iii : m_l2g)
+    multiplicity[iii] = 1;
+
+  hmpi.GlobalInt(multiplicity.data(),multiplicity.size(),MPI_SUM);
+
+//  std::cout << "SSS=====\n";
+//  for (auto& iii : multiplicity)
+//    std::cout << iii << '\n';
+//  std::cout << "EEE=====\n";
+
+  std::vector<int> dofOnIntf(0);
+  for (auto& iii : m_l2g)
+  {
+    if (multiplicity[iii] > 1)
+      dofOnIntf.push_back(iii);
+  }
+//  std::cout << "SSS=====\n";
+//  for (auto& iii : dofOnIntf) std::cout << iii << '\n';
+//  std::cout << "EEE=====\n";
+
+  std::vector<int> numberOfDofOnIntfZ0(m_mpisize,0);
+  std::vector<int> ptrZ0(m_mpisize,0);
+
+  int numberOfDofOnIntf = (int) dofOnIntf.size();
+  numberOfDofOnIntfZ0[m_mpirank] = numberOfDofOnIntf;
+
+  int root(0);
+  hmpi.GatherInt(&numberOfDofOnIntf, 1,
+               numberOfDofOnIntfZ0.data(), 1 , root);
+
+  int sumIntfDofs(0);
+  if (m_mpirank == root)
+  {
+//    std::cout << "SSS=====\n";
+    for (auto& iii : numberOfDofOnIntfZ0)
+    {
+  //    std::cout << iii << '\n';
+      sumIntfDofs +=  iii;
+    }
+//    std::cout << "EEE=====\n";
+  }
+
+// ----------------------------------
+  int edgeSum=0;
+
+  std::vector<int>  intfDofsOnRoot;
+  if (m_mpirank  == root){
+    intfDofsOnRoot.resize(sumIntfDofs,-1);
+
+    ptrZ0.resize(m_mpisize + 1);
+    for(int i=0; i < m_mpisize; ++i) {
+        ptrZ0[i]=edgeSum;
+        edgeSum+=numberOfDofOnIntfZ0[i];
+    }
+    ptrZ0[m_mpisize] = edgeSum;
+  }
+// ----------------------------------  
+
+  hmpi.GathervInt(dofOnIntf.data(), dofOnIntf.size(), // to send
+      intfDofsOnRoot.data(),
+      numberOfDofOnIntfZ0.data(),ptrZ0.data(),
+      root);
+
+  std::vector<std::set<int>> neighbours;
+  std::map<int,std::list<int>> dofAndDomain;
+  int sumOfInterfacesGlobal(0);
+
+  if (m_mpirank  == root)
+  {
+    for (int isub = 0; isub < m_mpisize; isub++)
+    {
+      for (int jj = ptrZ0[isub]; jj < ptrZ0[isub+1] ; jj++)
+      {
+//        std::cout <<  intfDofsOnRoot[jj] << ' ';
+        dofAndDomain[intfDofsOnRoot[jj]].push_back(isub);
+      }
+ //     std::cout << '\n';
+    }
+
+    //for (auto& imap : dofAndDomain)
+    //{
+    //  std::cout << imap.first << ": ";
+    //  for (auto& ilist : imap.second)
+    //    std::cout << ilist << ' ';
+    //  std::cout << '\n';
+    //}
+
+    m_listOfNeighboursColumPtr.resize(m_mpisize+1,0);
+    neighbours.resize(m_mpisize);
+    for (int isub = 0; isub < m_mpisize; isub++)
+    {
+      for (int jj = ptrZ0[isub]; jj < ptrZ0[isub+1] ; jj++)
+      {
+        for (int& kk : dofAndDomain[intfDofsOnRoot[jj]])
+        {
+          neighbours[isub].insert(kk);
+//          std::cout << isub << ":" << intfDofsOnRoot[jj]<<":" << kk << "\n";
+        }
+      }
+      auto it = neighbours[isub].find(isub);
+      neighbours[isub].erase(it);
+      sumOfInterfacesGlobal += neighbours[isub].size();
+      m_listOfNeighboursColumPtr[isub + 1] = sumOfInterfacesGlobal;
+    }
+
+    std::cout << "neighb....\n";
+    for (int isub = 0; isub < m_mpisize; isub++)
+    {
+      std::cout << isub << ": ";
+      for (auto& ns : neighbours[isub])
+      {
+        std::cout << ns << ' ';
+      }
+      std::cout << '\n';
+    }
+  } // rank == root 
+
+  std::vector<int> numberOfNeighboursRoot;
+  int numberOfNeighboursLocal(0);
+
+  m_listOfNeighbours.resize(sumOfInterfacesGlobal);
+
+  if (m_mpirank  == root)
+  {
+    int cnt(0);
+    numberOfNeighboursRoot.resize(m_mpisize,-1);
+    for (int isub = 0; isub < m_mpisize; isub++)
+    {
+      numberOfNeighboursRoot[isub] = neighbours[isub].size();
+      for (auto &kface : neighbours[isub])
+        m_listOfNeighbours[cnt++]  = kface;
+    }
+  }
+
+  hmpi.ScatterInt(numberOfNeighboursRoot.data(),1, 
+      &numberOfNeighboursLocal, 1, root);
+
+  std::cout << "number of neighbours is: " << numberOfNeighboursLocal << '\n';
+  std::vector<int> listOfInterfacesLocal(numberOfNeighboursLocal,-1);
+
+  std::cout << "------------\n";
+  for (auto& intf : m_listOfNeighboursColumPtr)
+    std::cout << intf << ' ';
+  std::cout << '\n';
+
+//
+  hmpi.ScattervInt(m_listOfNeighbours.data(), numberOfNeighboursRoot.data(),
+      m_listOfNeighboursColumPtr.data(), 
+      listOfInterfacesLocal.data(),listOfInterfacesLocal.size(),root);
+
+  for (auto& intf : listOfInterfacesLocal)
+    std::cout << intf << ' ';
+  std::cout << '\n';
+
+  inout = listOfInterfacesLocal;
+}
+
 void Domain::SetInterfaces()
 {
 
-  // m_multiplicity
-
-  int nInterf = m_neighboursRanks.size();
-  if (nInterf == 0)
-    std::runtime_error("undecomposed?");
-  //TODO or Dirichlet
 
 
-  // allocate
+  if ((int)m_neighboursRanks.size() == 0)
+  {
+    _SearchNeighbours(m_neighboursRanks);
+  }
+
+  int nInterf = (int)m_neighboursRanks.size();
+
   m_interfaces.resize(nInterf);
   for (int iR = 0; iR < nInterf; iR++)
     m_interfaces[iR].SetNeighbRank(m_neighboursRanks[iR]);
 
 
 
-  for (auto& i_intfc : m_interfaces)
+  for (int i_ = 0 ; i_ < nInterf; i_++ )
   {
+
+    Interface& i_intfc = m_interfaces[i_];
+
     int neighRank = i_intfc.GetNeighbRank();
     int neq_neighb(0);
 
@@ -162,8 +337,6 @@ void Domain::SetInterfaces()
     std::cout << " -- neqInterface = " << neqInterface << std::endl;
 
 
-
-
     if (m_mpirank > neighRank)
     {
       hmpi.SendInt(intersection.data(),neqInterface, neighRank);
@@ -173,7 +346,7 @@ void Domain::SetInterfaces()
       intersection.resize(neqInterface,-1);
       hmpi.RecvInt(intersection.data(),neqInterface, neighRank);
     }
-    
+
     i_intfc.m_interfaceDOFs.resize(neqInterface);
     for (int dof = 0; dof < neqInterface; dof ++)
       i_intfc.m_interfaceDOFs[dof] =  m_g2l[intersection[dof]];

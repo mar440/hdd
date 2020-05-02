@@ -300,8 +300,8 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
 
   m_p_domain->hmpi.GathervInt(
       listOfInterfacesLocal.data(), listOfInterfacesLocal.size(), // to send
-      m_listOfNeighbours.data(), numberOfNeighboursRoot.data(),   // info
-      m_listOfNeighboursColumPtr.data(),  m_root);
+      m_listOfNeighbours.data(), 
+      numberOfNeighboursRoot.data(),m_listOfNeighboursColumPtr.data(),  m_root);
 
 
   //if (m_p_domain->GetRank()  == m_root)

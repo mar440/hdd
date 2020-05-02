@@ -31,14 +31,24 @@ class Hmpi
                 void *recvbuf, const int *recvcounts, const int *displs,
                 int root);
 
-    void ScattervDbl(void *sendbuf, int *sendcnts, int *displs,
-        void *recvbuf, int recvcnt, int root);
+    void ScattervDbl(void* sendbuf, int* sendcnts, int* displs,
+        void* recvbuf, int recvcnt, int root);
 
-    void BcastInt(void *buffer, int count, int root);
+    void ScattervInt(void* sendbuf, int* sendcnts, int* displs,
+        void* recvbuf, int recvcnt, int root);
 
-    void BcastDbl(void *buffer, int count, int root);
+    void BcastInt(void* buffer, int count, int root);
 
-    void GlobalSum(double * in_out_buffre, int count);
+    void BcastDbl(void* buffer, int count, int root);
+
+    void GlobalSum(double* in_out_buffre, int count);
+
+    void GlobalInt(int* in_out_buffre, int count, MPI_Op operation);
+
+    void AlltoallInt(int* in_out_buffer,int in_buffer_size, int count);
+
+    void ScatterInt(const void* sendbuf, int sendcount, void *recvbuf,
+      int recvcount, int root);
 
   private:
     MPI_Comm* m_pcomm;

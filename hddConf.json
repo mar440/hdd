@@ -20,13 +20,13 @@
     {
       "mesh" :
       {
-        "numberOfStrips" : 1,
+        "numberOfStrips" : 2,
         "typeOfElement" : "lin",
-        "numberOfElements_x" : 1,
-        "numberOfElements_y" : 1,
-        "numberOfSubdomains_x" : 2,
-        "numberOfSubdomains_y" : 2,
-        "lenght_x" : 3.2,
+        "numberOfElements_x" : 13,
+        "numberOfElements_y" : 13,
+        "numberOfSubdomains_x" : 4,
+        "numberOfSubdomains_y" : 4,
+        "lenght_x" : 1.2,
         "lenght_y" : 1.1,
         "shift_x" : 0.31,
         "shift_y" : 0.32,

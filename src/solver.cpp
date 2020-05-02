@@ -237,7 +237,6 @@ bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
   }
 
 
-
   int niter =  iter + 1;
 
   std::cout << " HDD solver - finish:\n";

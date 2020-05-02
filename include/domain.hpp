@@ -69,6 +69,7 @@ class Domain
     std::vector<double> m_multiplicity;
 
     void _SetDirichletPrecondDOFs();
+    void _SearchNeighbours(std::vector<int>&);
 
     int m_verboseLevel;
 
@@ -76,4 +77,6 @@ class Domain
     void m_dbg_printNeighboursRanks();
     void m_dbg_print_l2g();
 
+    std::vector<int> m_listOfNeighbours;
+    std::vector<int> m_listOfNeighboursColumPtr;
 };

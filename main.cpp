@@ -43,11 +43,13 @@ int main(int argc, char **argv)
   }
 
 // decomposition
-  mesh.extractSubdomainMesh();
+  mesh.DomainDecomposition(); // metis
+  mesh.ExtractSubdomainMesh();
 
 
   // TODO make it inside the HDD library
-  dataH.GetDomain()->SetNeighboursRanks(mesh.getNeighboursRanks());
+  
+  //dataH.GetDomain()->SetNeighboursRanks(mesh.getNeighboursRanks());
 
 
   // symbolic part

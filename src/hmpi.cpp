@@ -78,6 +78,14 @@ void Hmpi::ScattervDbl(void *sendbuf, int *sendcnts, int *displs,
       recvbuf,recvcnt, MPI_DOUBLE,root,*m_pcomm);
 }
 
+void Hmpi::ScattervInt(void *sendbuf, int *sendcnts, int *displs,
+  void *recvbuf, int recvcnt, int root)
+{
+
+  MPI_Scatterv(sendbuf,sendcnts,displs,MPI_INT,
+      recvbuf,recvcnt, MPI_INT,root,*m_pcomm);
+}
+
 void Hmpi::BcastInt(void *buffer, int count, int root)
 {
   MPI_Bcast(buffer,count, MPI_INT, root, *m_pcomm);
@@ -97,10 +105,38 @@ void Hmpi::GlobalSum(double * in_out_buffer, int count)
       MPI_SUM,*m_pcomm);
 }
 
+void Hmpi::GlobalInt(int* in_out_buffer, int count, MPI_Op operation)
+{
+  std::vector<int> send_buffer(in_out_buffer,  in_out_buffer + count);
+
+  MPI_Allreduce(send_buffer.data(), in_out_buffer, count, MPI_INT,
+      operation, *m_pcomm);
+ 
+}
+
 void Hmpi::Barrier()
 {
   MPI_Barrier(*m_pcomm);
 }
+
+
+void Hmpi::AlltoallInt(int* in_out_buffer, int in_buffer_size, int count)
+{
+
+  std::vector<int> send_buffer(in_out_buffer,  in_out_buffer + count);
+  MPI_Alltoall(send_buffer.data(),1,MPI_INT,in_out_buffer,1,MPI_INT,
+      *m_pcomm);
+
+}
+
+void Hmpi::ScatterInt(const void* sendbuf, int sendcount, void *recvbuf, 
+    int recvcount, int root)
+{
+    MPI_Scatter(sendbuf, sendcount, MPI_INT, recvbuf, recvcount, MPI_INT,
+        root, *m_pcomm);
+}
+
+
 
 void Hmpi::Sendrecv()
 {
