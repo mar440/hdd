@@ -67,12 +67,7 @@ include_directories(${METIS_INCLUDEDIRS} ${CMAKE_CURRENT_SOURCE_DIR})
 ## BOOST ########
 #################
 
-#		set(Boost_USE_STATIC_LIBS ON) 
-#		set(Boost_USE_MULTITHREADED ON)  
 set(Boost_USE_STATIC_RUNTIME OFF) 
-#		#find_package(Boost 1.45.0 COMPONENTS ) 
-#		set(BOOST_PACKAGES "date_time" "filesystem" "system" "chrono" "thread" "regex" "unit_test_framework")
-#		find_package(Boost ${BOOST_VERSION_REQUIRED} COMPONENTS ${BOOST_PACKAGES} REQUIRED)
 
 set(BOOST_PACKAGES "date_time" "filesystem" "system" "chrono" "thread" "regex" "unit_test_framework")
 
@@ -112,8 +107,6 @@ else()
   message("boost not!!! not found ----------------------------------")
 endif()
 
-
-# Use imported targets would make things much easier. Thanks Levi for pointing it out.
 
 add_executable(${PROJECT_NAME} main.cpp ${sources})
 target_link_libraries(${PROJECT_NAME}  PRIVATE MPI::MPI_C  ${VTK_LIBRARIES} Eigen3::Eigen 
