@@ -1,11 +1,14 @@
 #include "../include/domain.hpp"
+#include "../include/linearAlgebra.hpp"
+#include "../include/stiffnessMatrix.hpp"
+
 #include <iostream>
+#include <iomanip>
 #include <math.h>
 #include <set>
 #include <map>
 
-#include "../include/linearAlgebra.hpp"
-#include "../include/stiffnessMatrix.hpp"
+#include <chrono>
 
 Domain::Domain(MPI_Comm* _pcomm): hmpi(_pcomm)
 {
@@ -107,6 +110,8 @@ void Domain::m_dbg_printNeighboursRanks()
 
 void Domain::_SearchNeighbours(std::vector<int>& inout)
 {
+
+  auto startTime = std::chrono::steady_clock::now();
 
   // get max DOF index in global numbering
   auto maxDofIndOnDomain =
@@ -273,6 +278,13 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
   std::cout << '\n';
 
   inout = listOfInterfacesLocal;
+
+  auto endTime = std::chrono::steady_clock::now();
+  std::chrono::duration<double> elapsed_seconds = endTime-startTime;
+  std::cout << std::fixed << std::setprecision(2) << 
+      "Search neighbours: " << elapsed_seconds.count() << " s\n";
+
+
 }
 
 void Domain::SetInterfaces()
