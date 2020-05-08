@@ -254,8 +254,12 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   if (m_p_domain->GetRank() == 0)
       numberOfNeighboursRoot.resize(m_p_domain->GetNumberOfSubdomains(),-1);
 #if DBG > 2
-  std::cout << "numberOfNeighboursRoot: << "  << numberOfNeighboursRoot.size() << '\n';
+  std::cout << "numberOfNeighboursRoot: << "  << numberOfNeighboursRoot.size() << std::endl;
+  std::cout << "numberOfInterfacesPerRank:" << numberOfInterfacesPerRank << std::endl;
 #endif
+
+  m_p_domain->hmpi.Barrier();
+
 
   m_p_domain->hmpi.GatherInt(&numberOfInterfacesPerRank, 1,
                numberOfNeighboursRoot.data(), 1 ,m_root);
@@ -276,6 +280,7 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   if (m_p_domain->GetRank()  == m_root)
     std::cout <<  "sumOfInterfacesGlobal: " << sumOfInterfacesGlobal << std::endl;
 #endif
+
 
 
 
@@ -304,25 +309,7 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
       numberOfNeighboursRoot.data(),m_listOfNeighboursColumPtr.data(),  m_root);
 
 
-  //if (m_p_domain->GetRank()  == m_root)
-  //{
-  //  for (int in = 0; in < (int) numberOfNeighboursRoot.size(); in++ )
-  //  {
-  //    std::cout << "(" << in << "): " ;
-  //    for (int jn = m_listOfNeighboursColumPtr[in];
-  //        jn < m_listOfNeighboursColumPtr[in+1]; jn++)
-  //    {
-  //      std::cout << m_listOfNeighbours[jn]<< ' ';
-  //    }
-  //    std::cout << '\n';
-  //  }
-  //  std::cout <<  "===========================+\n";
-  //}
 
-
-  //
-  // send blocks to root
-  //
 
 
   int sizeOfSendingBuffer = myDefect * myDefect;
@@ -331,10 +318,8 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   {
     int tmp0 = (*m_p_defectPerSubdomains)[itf.GetNeighbRank()] * myDefect;
     sizeOfSendingBuffer += tmp0;
-//  int cntI(0);
-//    int tmp1 = GtG_local_offdiag[cntI++].size();
-//    std::cout << "tmp0 & tmp1: " << tmp0 << ' ' << tmp1 << '\n';
   }
+
 
 
 #if DBG > 2
