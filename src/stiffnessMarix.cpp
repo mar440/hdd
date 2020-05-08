@@ -32,9 +32,22 @@ StiffnessMatrix::StiffnessMatrix(
 }
 
 
-
 void StiffnessMatrix::AddElementContribution(std::vector<int>& glbIds,
     std::vector<double>& valLocK)
+{
+
+  int neqLocal = glbIds.size();
+
+  if (pow(neqLocal,2) != valLocK.size())
+    std::runtime_error(__FILE__);
+
+  AddElementContribution(glbIds.data(),valLocK.data(), neqLocal);
+
+
+}
+
+void StiffnessMatrix::AddElementContribution(int glbIds[],
+    double valLocK[], int neqLocal)
 {
 
   //TODO if patern does not change
@@ -48,10 +61,6 @@ void StiffnessMatrix::AddElementContribution(std::vector<int>& glbIds,
   }
 
 
-  int neqLocal = glbIds.size();
-
-  if (pow(neqLocal,2) != valLocK.size())
-    std::runtime_error(__FILE__);
 
   int rowLocal(0);
 
@@ -77,9 +86,20 @@ void StiffnessMatrix::AddElementContribution(std::vector<int>& glbIds,
 
 }
 
-
 void StiffnessMatrix::AddRHSContribution(std::vector<int>& glbIds,
     std::vector<double>& valLocF)
+{
+
+  int neqLocal = glbIds.size();
+
+  if (pow(neqLocal,2) != valLocF.size())
+    std::runtime_error(__FILE__);
+
+  AddRHSContribution(glbIds.data(), valLocF.data(),neqLocal);
+}
+
+void StiffnessMatrix::AddRHSContribution(int glbIds[],
+    double valLocF[], int neqLocal)
 {
 
   if (m_cnt_setLocalRHS==0)
@@ -92,10 +112,6 @@ void StiffnessMatrix::AddRHSContribution(std::vector<int>& glbIds,
   }
 
 
-  int neqLocal = glbIds.size();
-
-  if (pow(neqLocal,2) != valLocF.size())
-    std::runtime_error(__FILE__);
 
   int rowLocal(0);
 
@@ -154,11 +170,12 @@ void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
   m_trK.shrink_to_fit();
 
   // build-in factorization based on PARDISO
+  DBGPRINT
   m_kerK = _GetKernelFromK(m_spmatK);
   m_nullPivots = GetNullPivots(m_kerK);
   m_FactorizeLinearOperator(m_nullPivots);
 
-#if DBG>2
+#if DBG>4
   Eigen::MatrixXd v2 =  Eigen::MatrixXd::Random(m_neq,2);
 
   Eigen::MatrixXd Kv2 = m_spmatK * v2;
@@ -550,7 +567,7 @@ typedef int  eslocal;
 #if DBG > 1
   auto col_rank = qr.rank();
   std::cout << "R.rows(), R.cols(): [" <<  Q.rows() << ", " << Q.cols() << "]\n";
-  std::cout << "rank = " << col_rank << '\n';
+  std::cout << "Q.rows() = " << col_rank << '\n';
   auto KQ = K * Q;
   std::cout << "|| K * R || "  << KQ.norm() << std::endl;
 
@@ -567,6 +584,10 @@ std::vector <int> StiffnessMatrix::GetNullPivots(const Eigen::MatrixXd& R)
   int n_col_ = R.cols();
   int n_row_ = R.rows();
 
+  if (n_col_ == 0)
+  {
+    return std::vector<int>(0);
+  }
 
   std::vector<double> N(n_col_ * n_row_);
 
@@ -582,7 +603,6 @@ std::vector <int> StiffnessMatrix::GetNullPivots(const Eigen::MatrixXd& R)
 
   auto ij = [&](int i_, int j_){ return i_ + j_ * R.rows();};
 
-  std::cout << "ij = " << ij(1,1) << std::endl;
 
   std::vector <double>::iterator  it;
   int I,colInd,rowInd;

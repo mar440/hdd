@@ -19,8 +19,12 @@ class StiffnessMatrix
 
     void AddElementContribution(std::vector<int>& glbIds,
         std::vector<double>& valLocK);
+    void AddElementContribution(int glbIds[], double valLocK[], int dim);
+
     void AddRHSContribution(std::vector<int>& glbIds,
         std::vector<double>& valLocF);
+    void AddRHSContribution(int glbIds[],double valLocF[],int dim);
+
     void FinalizeNumericPart(const std::vector<int>& DirDOFs);
     void solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out);
     Eigen::MatrixXd* GetKernel(){ return &m_kerK;}
