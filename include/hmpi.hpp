@@ -51,7 +51,7 @@ class Hmpi
       int recvcount, int root);
 
   private:
-    MPI_Comm* m_pcomm;
+    MPI_Comm m_comm;
 
 
 };

@@ -7,31 +7,31 @@
 
 
 
-Hmpi::Hmpi(MPI_Comm* _comm)
+Hmpi::Hmpi(MPI_Comm* _pcomm)
 {
-  m_pcomm = _comm;
+  m_comm = *_pcomm;
 }
 
 void Hmpi::SendInt(void* buf,int count, int dest)
 {
-  MPI_Send(buf, count, MPI_INT, dest, TAG_SEND_INT, *m_pcomm );
+  MPI_Send(buf, count, MPI_INT, dest, TAG_SEND_INT, m_comm );
 }
 
 void Hmpi::RecvInt(void* buf,int count, int dest)
 {
   MPI_Status recv_status;
-  MPI_Recv(buf, count,MPI_INT, dest ,TAG_SEND_INT,*m_pcomm,&recv_status);
+  MPI_Recv(buf, count,MPI_INT, dest ,TAG_SEND_INT,m_comm,&recv_status);
 }
 
 void Hmpi::SendDbl(void* buf,int count, int dest)
 {
-  MPI_Send(buf, count, MPI_DOUBLE, dest, TAG_SEND_INT, *m_pcomm );
+  MPI_Send(buf, count, MPI_DOUBLE, dest, TAG_SEND_INT, m_comm );
 }
 
 void Hmpi::RecvDbl(void* buf,int count, int dest)
 {
   MPI_Status recv_status;
-  MPI_Recv(buf, count,MPI_DOUBLE, dest ,TAG_SEND_INT,*m_pcomm,&recv_status);
+  MPI_Recv(buf, count,MPI_DOUBLE, dest ,TAG_SEND_INT,m_comm,&recv_status);
 }
 
 
@@ -39,7 +39,7 @@ void Hmpi::RecvDbl(void* buf,int count, int dest)
 void Hmpi::ReduceInt(const void *sendbuf, void *recvbuf, int count,
                MPI_Op op, int root)
 {
-  MPI_Reduce(sendbuf, recvbuf, count, MPI_INT, op, root, *m_pcomm);
+  MPI_Reduce(sendbuf, recvbuf, count, MPI_INT, op, root, m_comm);
 }
 
 
@@ -48,7 +48,7 @@ void Hmpi::GatherInt(const void *sendbuf, int sendcount,
                void *recvbuf, int recvcount,int root)
 {
   MPI_Gather(sendbuf, sendcount, MPI_INT, recvbuf, recvcount, MPI_INT,
-               root, *m_pcomm);
+               root, m_comm);
 }
 
 
@@ -57,7 +57,7 @@ void Hmpi::GathervInt(const void *sendbuf, int sendcount,
                 int root)
 {
   MPI_Gatherv(sendbuf, sendcount, MPI_INT, recvbuf, recvcounts,
-                displs, MPI_INT, root, *m_pcomm);
+                displs, MPI_INT, root, m_comm);
 
 }
 
@@ -66,7 +66,7 @@ void Hmpi::GathervDbl(const void *sendbuf, int sendcount,
                 int root)
 {
   MPI_Gatherv(sendbuf, sendcount, MPI_DOUBLE, recvbuf, recvcounts,
-                displs, MPI_DOUBLE, root, *m_pcomm);
+                displs, MPI_DOUBLE, root, m_comm);
 
 }
 
@@ -75,7 +75,7 @@ void Hmpi::ScattervDbl(void *sendbuf, int *sendcnts, int *displs,
 {
 
   MPI_Scatterv(sendbuf,sendcnts,displs,MPI_DOUBLE,
-      recvbuf,recvcnt, MPI_DOUBLE,root,*m_pcomm);
+      recvbuf,recvcnt, MPI_DOUBLE,root,m_comm);
 }
 
 void Hmpi::ScattervInt(void *sendbuf, int *sendcnts, int *displs,
@@ -83,17 +83,17 @@ void Hmpi::ScattervInt(void *sendbuf, int *sendcnts, int *displs,
 {
 
   MPI_Scatterv(sendbuf,sendcnts,displs,MPI_INT,
-      recvbuf,recvcnt, MPI_INT,root,*m_pcomm);
+      recvbuf,recvcnt, MPI_INT,root,m_comm);
 }
 
 void Hmpi::BcastInt(void *buffer, int count, int root)
 {
-  MPI_Bcast(buffer,count, MPI_INT, root, *m_pcomm);
+  MPI_Bcast(buffer,count, MPI_INT, root, m_comm);
 }
 
 void Hmpi::BcastDbl(void *buffer, int count, int root)
 {
-  MPI_Bcast(buffer,count, MPI_DOUBLE, root, *m_pcomm);
+  MPI_Bcast(buffer,count, MPI_DOUBLE, root, m_comm);
 }
 
 
@@ -102,7 +102,7 @@ void Hmpi::GlobalSum(double * in_out_buffer, int count)
   std::vector<double> send_buffer(in_out_buffer,  in_out_buffer + count);
 
   MPI_Allreduce(send_buffer.data(), in_out_buffer, count, MPI_DOUBLE,
-      MPI_SUM,*m_pcomm);
+      MPI_SUM,m_comm);
 }
 
 void Hmpi::GlobalInt(int* in_out_buffer, int count, MPI_Op operation)
@@ -110,13 +110,13 @@ void Hmpi::GlobalInt(int* in_out_buffer, int count, MPI_Op operation)
   std::vector<int> send_buffer(in_out_buffer,  in_out_buffer + count);
 
   MPI_Allreduce(send_buffer.data(), in_out_buffer, count, MPI_INT,
-      operation, *m_pcomm);
+      operation, m_comm);
  
 }
 
 void Hmpi::Barrier()
 {
-  MPI_Barrier(*m_pcomm);
+  MPI_Barrier(m_comm);
 }
 
 
@@ -125,7 +125,7 @@ void Hmpi::AlltoallInt(int* in_out_buffer, int in_buffer_size, int count)
 
   std::vector<int> send_buffer(in_out_buffer,  in_out_buffer + count);
   MPI_Alltoall(send_buffer.data(),1,MPI_INT,in_out_buffer,1,MPI_INT,
-      *m_pcomm);
+      m_comm);
 
 }
 
@@ -133,7 +133,7 @@ void Hmpi::ScatterInt(const void* sendbuf, int sendcount, void *recvbuf,
     int recvcount, int root)
 {
     MPI_Scatter(sendbuf, sendcount, MPI_INT, recvbuf, recvcount, MPI_INT,
-        root, *m_pcomm);
+        root, m_comm);
 }
 
 
