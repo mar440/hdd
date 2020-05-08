@@ -1,17 +1,17 @@
 cmake_minimum_required(VERSION 3.0)
 
-project(mpitest)
+project(hdd)
 
-add_compile_definitions(DBG=2)
+add_compile_definitions(DBG=0)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMake/") 
 file(GLOB sources 
-  "${PROJECT_SOURCE_DIR}/include/*.hpp",
+  "${PROJECT_SOURCE_DIR}/include/*.hpp","${PROJECT_SOURCE_DIR}/*.hpp",
   "${PROJECT_SOURCE_DIR}/src/*.cpp")
 
 
 if(UNIX)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11 -fPIC -Wunused-but-set-variable")
+  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11 -fPIC -Wunused-but-set-variable")
 endif()
 
 
@@ -43,25 +43,17 @@ find_package(MPI REQUIRED)
 add_definitions(-DOMPI_SKIP_MPICXX)
 
 #################
-## VTK ##########
-#################
-#TODO make the mesher as a separate library to avoi vtk dependency
-set(VTK_DIR  "$ENV{VTK_ROOT}/build" CACHE PATH "")
-find_package(VTK REQUIRED)
-include(${VTK_USE_FILE})
-
-#################
 ## EIGEN ########
 #################
 find_package(Eigen3 REQUIRED NO_MODULE)
 include_directories(EIGEN3_INCLUDE_DIR)
 
-#################
-## METIS ########
-#################
-set(METIS_LIBRARIES $ENV{METIS_LIBRARIES}/libmetis.a CACHE PATH "mydoc")
-set(METIS_INCLUDEDIRS $ENV{METIS_INCLUDEDIRS} CACHE PATH "mydoc")
-include_directories(${METIS_INCLUDEDIRS} ${CMAKE_CURRENT_SOURCE_DIR})
+#   #################
+#   ## METIS ########
+#   #################
+#   set(METIS_LIBRARIES $ENV{METIS_LIBRARIES}/libmetis.a CACHE PATH "mydoc")
+#   set(METIS_INCLUDEDIRS $ENV{METIS_INCLUDEDIRS} CACHE PATH "mydoc")
+#   include_directories(${METIS_INCLUDEDIRS} ${CMAKE_CURRENT_SOURCE_DIR})
 
 #################
 ## BOOST ########
@@ -107,11 +99,15 @@ else()
   message("boost not!!! not found ----------------------------------")
 endif()
 
-
-add_executable(${PROJECT_NAME} main.cpp ${sources})
-target_link_libraries(${PROJECT_NAME}  PRIVATE MPI::MPI_C  ${VTK_LIBRARIES} Eigen3::Eigen 
-  ${METIS_LIBRARIES} ${BLAS_LIBRARIES}  ${Boost_LIBRARIES})
-
-
 set(CMAKE_CONFIGURATION_TYPES "Debug" CACHE STRING "" FORCE)
-set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON )
+
+add_library(${PROJECT_NAME} SHARED main.cpp ${sources})
+target_link_libraries(${PROJECT_NAME}  PRIVATE MPI::MPI_C   Eigen3::Eigen 
+   ${BLAS_LIBRARIES}  ${Boost_LIBRARIES})
+ #${METIS_LIBRARIES} 
+
+
+install(TARGETS ${PROJECT_NAME} DESTINATION ${PROJECT_SOURCE_DIR}/bin)
+install(FILES hddApi.hpp hddPythonApi.hpp DESTINATION ${PROJECT_SOURCE_DIR})
+#install(FILES hddPythonApi.hpp DESTINATION ${PROJECT_SOURCE_DIR})
