@@ -4,7 +4,6 @@
 #include <Eigen/Sparse>
 #include <Eigen/Dense>
 
-#include "mesh.hpp"
 #include "types.hpp"
 #include "domain.hpp"
 #include "interfaceOperatorB.hpp"
@@ -23,26 +22,30 @@ class Data{
     ~Data();
 
     void SymbolicAssembling(std::vector<int>& glbIds);
-    void FinalizeSymbolicAssembling();
+    void SymbolicAssembling(int[],int size);
+    int FinalizeSymbolicAssembling();
 
     void NumericAssembling(std::vector<int>& glbIds,
         std::vector<double>& valLocK,
         std::vector<double>& valLocRHS);
+    void NumericAssembling(int glbIds[],
+        double valLocK[], double valLocRHS[], int nDofs);
+
     void FinalizeNumericAssembling();
 
     Domain* GetDomain(){return  &m_domain;}
     void SetDirichletDOFs(std::vector<int>&v);
+    void SetDirichletDOFs(int[],int);
     InterfaceOperatorB* GetInterfaceOperatorB(){return m_p_interfaceOperatorB;}
-    void Solve(Eigen::VectorXd&);
+    void Solve(Eigen::Ref<Eigen::MatrixXd>);
+    void Solve(double vals[], int nrows, int ncols = 1);
     void Finalize();
-    void ParseJsonFile(std::string path2file);
-//    InterfaceOperatorG* GetInterfaceOperatorG(){return m_p_interfaceOperatorG;}
+    void PathToSolverOptionFile(std::string path2file);
     boost::property_tree::ptree GetChild(std::string _s0){return m_root.get_child(_s0);}
-//
 
 
   private:
-    MPI_Comm* m_pcomm;
+    MPI_Comm m_comm;
     int m_mpiRank;
     int m_mpiSize;
 
@@ -51,7 +54,6 @@ class Data{
     std::vector<int> m_DirichletGlbDofs;
     Domain m_domain;
     InterfaceOperatorB* m_p_interfaceOperatorB;
-    //InterfaceOperatorG* m_p_interfaceOperatorG;
 
     int m_cnt_setLocalMatrix;
 
@@ -63,8 +65,9 @@ class Data{
     std::streambuf* m_p_sbuf;
     std::streambuf* m_p_backup;
     std::ofstream m_filestr;
-
-    void _dumpTxtFiles(Eigen::VectorXd&);
+  
+    //depracted
+    void _dumpTxtFiles(Eigen::Ref<Eigen::MatrixXd>);
     boost::property_tree::ptree m_root;
     int m_verboseLevel;
 
