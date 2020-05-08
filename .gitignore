@@ -3,3 +3,9 @@ build/*
 *.session
 *nohup.out
 __pycache__
+out_*.txt
+python/bin/
+python/HddApi.cpp
+*.pyc
+python/build
+*.so
