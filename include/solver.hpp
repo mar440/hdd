@@ -10,10 +10,8 @@ class Solver
   public:
     Solver(){}
     ~Solver(){}
-    bool pcpg(Data&, Eigen::VectorXd&);
+    bool pcpg(Data& data, Eigen::Ref<Eigen::MatrixXd> _solution);
     bool mpcpg(Data&, Eigen::VectorXd&);
   private:
-//    DirectSolver m_directSolver;
-//    Data* m_p_data;
 
 };

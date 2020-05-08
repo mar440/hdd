@@ -13,7 +13,7 @@
 using namespace std;
 
 
-bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
+bool Solver::pcpg(Data& data, Eigen::Ref<Eigen::MatrixXd> solutionInOut)
 {
 
 
@@ -247,7 +247,11 @@ bool Solver::pcpg(Data& data, Eigen::VectorXd& _solution)
   std::cout << "     number of iteration: " << niter << "\n";
 
   // copy solution to inout array
-  _solution = solution;
+  if (solution.rows() == solutionInOut.rows() &&
+      solution.cols() == solutionInOut.cols())
+    solutionInOut = solution;
+  else
+    std::runtime_error("input solution has incorrect dimensions");
 
 
 
