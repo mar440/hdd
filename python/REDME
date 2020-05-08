@@ -1,0 +1,6 @@
+
+
+export LD_PRELOAD=/home/mar440/intel/mkl/lib/intel64/libmkl_core.so:/home/mar440/intel/mkl/lib/intel64/libmkl_sequential.so
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/mar440/WorkSpace/hfls/mpfeti_separate/build
+

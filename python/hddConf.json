@@ -1,0 +1,14 @@
+{
+  "solver":
+  {
+    "preconditioner" : "Lumped",
+    "stopingCriteria" : 1e-7,
+    "maxNumbIter" : 400
+  },
+  "outputs" :
+  {
+    "verbose" : 0,
+    "dumpMatrices" : 0
+  }
+}
+
