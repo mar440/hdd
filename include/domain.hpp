@@ -43,7 +43,7 @@ class Domain
     void m_Init();
     int m_mpirank;
     int m_mpisize;
-    MPI_Comm* m_pcomm;
+    MPI_Comm m_comm;
 
     void m_SetMappingGlb2Loc();
     std::vector<int> m_l2g;

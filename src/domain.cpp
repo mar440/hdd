@@ -12,7 +12,7 @@
 
 Domain::Domain(MPI_Comm* _pcomm): hmpi(_pcomm)
 {
-  m_pcomm =  _pcomm;
+  m_comm =  *_pcomm;
   m_Init();
 }
 
@@ -35,9 +35,8 @@ void Domain::m_Init()
   m_I_DirichletPrecondDOFs.resize(0);
   m_B_DirichletPrecondDOFs.resize(0);
 
-
-  MPI_Comm_rank(*m_pcomm,&m_mpirank);
-  MPI_Comm_size(*m_pcomm,&m_mpisize);
+  MPI_Comm_rank(m_comm,&m_mpirank);
+  MPI_Comm_size(m_comm,&m_mpisize);
 
 }
 
