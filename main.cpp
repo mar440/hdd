@@ -1,4 +1,3 @@
-#include "hddPythonApi.hpp"
 #include "hddApi.hpp"
 
 int main(int argc, char **argv) 
