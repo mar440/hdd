@@ -9,3 +9,4 @@ python/HddApi.cpp
 *.pyc
 python/build
 *.so
+python/*.txt
