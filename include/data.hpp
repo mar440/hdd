@@ -65,11 +65,36 @@ class Data{
     std::streambuf* m_p_sbuf;
     std::streambuf* m_p_backup;
     std::ofstream m_filestr;
-  
+
+
+
+    // global DOFs 
+    void m_DumpInputsGlbDOFsPerElements(int glbIds[],int nDofs);
+    std::ofstream m_ofstrDumpInputsGlbDOFs;
+    std::string m_fnameDmpGlbDOFs;
+    // local linear operator - dump element by element
+    void m_DumpInputsKfPerElements(int glbIds[],
+        double valLocK[], double valLocRHS[], int nDofs);
+    std::ofstream m_ofstrDumpInputsLinOperator;
+    std::string m_fnameDmpLocLinOperator;
+    // local RHS - dump element by element
+    std::ofstream m_ofstrDumpInputsRHS;
+    std::string m_fnameDmpLocRHS;
+
+    //
+    void m_DumpInputsDirichletIds(int vals[],int size);
+    std::ofstream m_ofstrDumpInputsDirichletInd;
+    std::string m_fnameDmpGlbDirichletInd;
+
+
+    /////////////////////////////////////////////////////////////
     //depracted
+    /////////////////////////////////////////////////////////////
     void _dumpTxtFiles(Eigen::Ref<Eigen::MatrixXd>);
     boost::property_tree::ptree m_root;
     int m_verboseLevel;
+
+
 
 
 
