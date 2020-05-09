@@ -5,7 +5,7 @@ build/*
 __pycache__
 out_*.txt
 python/bin/
-python/HddApi.cpp
+#python/HddApi.cpp
 *.pyc
 python/build
 *.so
