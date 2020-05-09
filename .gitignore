@@ -4,9 +4,9 @@ build/*
 *nohup.out
 __pycache__
 out_*.txt
-python/bin/
-#python/HddApi.cpp
+python-wrapper/bin/
+python-wrapper/HddApi.cpp
 *.pyc
-python/build
+python-wrapper/build
 *.so
-python/*.txt
+python-wrapper/*.txt
