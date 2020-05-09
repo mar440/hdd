@@ -22,9 +22,7 @@ Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
   m_defectPerSubdomains.resize(0);
   m_DirichletGlbDofs.resize(0);
 
-
   std::string fname = "out_" + std::to_string(m_mpiRank) + ".txt";
-
 
   m_filestr.open(fname);
   m_p_backup = std::cout.rdbuf(); // back up cout's streambuf
@@ -35,19 +33,14 @@ Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
   std::cout << "SUBDOMAIN id. " << m_mpiRank << "\n";
   std::cout << "++++++++++++++++++++++++\n\n";
 
-
   m_fnameDmpGlbDOFs =
     "dmpGlbDOFs_" + std::to_string(m_mpiRank) + ".txt";
-
   m_fnameDmpLocLinOperator = 
     "dmpLocLinOperator_" + std::to_string(m_mpiRank) + ".txt";
   m_fnameDmpLocRHS =
     "dmpLocRHS_" + std::to_string(m_mpiRank) + ".txt";
   m_fnameDmpGlbDirichletInd =
     "dmpGlbDirichletIds_" + std::to_string(m_mpiRank) + ".txt";
-
-
-
 }
 
 Data::~Data()
@@ -57,8 +50,6 @@ Data::~Data()
 
 void Data::SymbolicAssembling(std::vector<int>& elemntIds)
 {
-//  m_container.insert(m_container.end(), elemntIds.begin(),
- //     elemntIds.end());
   SymbolicAssembling(elemntIds.data(),elemntIds.size());
 }
 void Data::SymbolicAssembling(int vals[],int size)
@@ -67,16 +58,12 @@ void Data::SymbolicAssembling(int vals[],int size)
 #if defined(DMP_INPUTS)
   m_DumpInputsGlbDOFsPerElements(vals, size);
 #endif
-
-  // gather global DOFs of subdomain elemnts to create
-  // mapping vector
   m_container.insert(m_container.end(), vals, vals + size);
 }
 
 void Data::Finalize()
 {
   std::cout.rdbuf(m_p_backup);        // restore cout's original streambuf
-
   m_filestr.close();
 }
 
@@ -98,9 +85,7 @@ int Data::FinalizeSymbolicAssembling()
   m_domain.SetInterfaces();
   m_p_interfaceOperatorB = new InterfaceOperatorB(&m_domain);
 
-
   if (m_verboseLevel>0) m_dbg_printStats();
-
 
   std::string precondType =
     m_root.get<std::string>("solver.preconditioner");
@@ -248,13 +233,7 @@ void Data::m_SetKernelNumbering()
     std::cout << '\n';
   }
 
-
-
-  int one = 1;
   m_domain.hmpi.AlltoallInt(m_defectPerSubdomains.data(),mpisize,mpisize);
-
-
-
 
   if (m_verboseLevel>2) 
   {
