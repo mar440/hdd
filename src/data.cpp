@@ -41,6 +41,9 @@ Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
     "dmpLocRHS_" + std::to_string(m_mpiRank) + ".txt";
   m_fnameDmpGlbDirichletInd =
     "dmpGlbDirichletIds_" + std::to_string(m_mpiRank) + ".txt";
+
+  HDDTRACES
+
 }
 
 Data::~Data()
@@ -59,6 +62,7 @@ void Data::SymbolicAssembling(int vals[],int size)
   m_DumpInputsGlbDOFsPerElements(vals, size);
 #endif
   m_container.insert(m_container.end(), vals, vals + size);
+
 }
 
 void Data::Finalize()
@@ -70,6 +74,7 @@ void Data::Finalize()
 int Data::FinalizeSymbolicAssembling()
 {
 
+  HDDTRACES
 #if defined(DMP_INPUTS)
   if (m_ofstrDumpInputsGlbDOFs.is_open())
     m_ofstrDumpInputsGlbDOFs.close();
@@ -79,13 +84,22 @@ int Data::FinalizeSymbolicAssembling()
   linalg::unique(m_container);
   m_domain.SetMappingLoc2Glb(m_container);
 
+  HDDTRACES
+
   m_container.clear();
   m_container.shrink_to_fit();
   //
+  HDDTRACES
+  //
   m_domain.SetInterfaces();
+  //
+  HDDTRACES
+  //
   m_p_interfaceOperatorB = new InterfaceOperatorB(&m_domain);
+  //
+  HDDTRACES
+  //
 
-  if (m_verboseLevel>0) m_dbg_printStats();
 
   std::string precondType =
     m_root.get<std::string>("solver.preconditioner");
@@ -114,7 +128,7 @@ int Data::FinalizeSymbolicAssembling()
     m_p_interfaceOperatorB->printNeighboursRanks("neighbRanks_");
   }
 
-
+  HDDTRACES
   return m_domain.GetNumberOfPrimalDOFs();
 
 }
@@ -246,7 +260,7 @@ void Data::m_SetKernelNumbering()
 
   m_container.resize(0);
   m_container.shrink_to_fit();
-  DBGPRINT
+  HDDTRACES 
 }
 
 
@@ -316,8 +330,8 @@ void Data::howMuchAssembled(int iCell, int nel){
 
 }
 
-void Data::m_dbg_printStats()
-{
+//void Data::m_dbg_printStats()
+//{
 //// test
 //  auto mpIO = m_p_interfaceOperatorB;
 //
@@ -371,7 +385,7 @@ void Data::m_dbg_printStats()
 //  std::cout << " *" << std::endl;
 
 
-}
+//}
 
 
 
