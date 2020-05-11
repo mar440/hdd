@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mpi.h>
+#include <vector>
 
 class Hmpi 
 {
@@ -15,6 +16,13 @@ class Hmpi
     void RecvDbl(void* buf,int count, int dest);
     void Sendrecv();
     void Barrier();
+
+    void IsendDbl(void* buf,int count, int dest);
+    void IrecvDbl(void* buf,int count, int dest);
+
+    void WaitRecv();
+    void WaitSend();
+    void Wait();
 
     void ReduceInt(const void *sendbuf, void *recvbuf, int count,
                MPI_Op op, int root);
@@ -41,9 +49,11 @@ class Hmpi
 
     void BcastDbl(void* buffer, int count, int root);
 
-    void GlobalSum(double* in_out_buffre, int count);
+    void GlobalSum(double* in_out_buffer, int count);
 
-    void GlobalInt(int* in_out_buffre, int count, MPI_Op operation);
+    void GlobalInt(int* in_out_buffer, int count, MPI_Op operation);
+
+    void GlobalInt(std::vector<int>& in_out_buffer, MPI_Op operation);
 
     void AlltoallInt(int* in_out_buffer,int in_buffer_size, int count);
 
@@ -52,6 +62,9 @@ class Hmpi
 
   private:
     MPI_Comm m_comm;
-
+    MPI_Status m_recv_status;
+    MPI_Status m_send_status;
+    MPI_Request m_send_request;
+    MPI_Request m_recv_request;
 
 };

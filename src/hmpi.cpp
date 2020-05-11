@@ -2,8 +2,10 @@
 #include <iostream>
 #include <stdexcept>
 #include <vector>
+#include "../include/types.hpp"
 
 #define TAG_SEND_INT 1000
+#define TAG_SEND_DBL 2000
 
 
 
@@ -25,15 +27,40 @@ void Hmpi::RecvInt(void* buf,int count, int dest)
 
 void Hmpi::SendDbl(void* buf,int count, int dest)
 {
-  MPI_Send(buf, count, MPI_DOUBLE, dest, TAG_SEND_INT, m_comm );
+  MPI_Send(buf, count, MPI_DOUBLE, dest, TAG_SEND_DBL, m_comm );
+}
+
+void Hmpi::IsendDbl(void* buf,int count, int dest)
+{
+  MPI_Isend(buf, count, MPI_DOUBLE, dest, TAG_SEND_DBL, m_comm, &m_send_request );
 }
 
 void Hmpi::RecvDbl(void* buf,int count, int dest)
 {
   MPI_Status recv_status;
-  MPI_Recv(buf, count,MPI_DOUBLE, dest ,TAG_SEND_INT,m_comm,&recv_status);
+  MPI_Recv(buf, count,MPI_DOUBLE, dest ,TAG_SEND_DBL,m_comm,&recv_status);
 }
 
+void Hmpi::IrecvDbl(void* buf,int count, int dest)
+{
+  MPI_Irecv(buf,count,MPI_DOUBLE, dest, TAG_SEND_DBL, m_comm,&m_recv_request);
+}
+
+void Hmpi::Wait()
+{
+  WaitRecv();
+  WaitSend();
+}
+
+void Hmpi::WaitRecv()
+{
+  MPI_Wait(&m_recv_request, &m_recv_status);
+}
+
+void Hmpi::WaitSend()
+{
+  MPI_Wait(&m_send_request, &m_send_status);
+}
 
 
 void Hmpi::ReduceInt(const void *sendbuf, void *recvbuf, int count,
@@ -42,8 +69,6 @@ void Hmpi::ReduceInt(const void *sendbuf, void *recvbuf, int count,
   MPI_Reduce(sendbuf, recvbuf, count, MPI_INT, op, root, m_comm);
 }
 
-
-
 void Hmpi::GatherInt(const void *sendbuf, int sendcount,
                void *recvbuf, int recvcount,int root)
 {
@@ -51,14 +76,12 @@ void Hmpi::GatherInt(const void *sendbuf, int sendcount,
                root, m_comm);
 }
 
-
 void Hmpi::GathervInt(const void *sendbuf, int sendcount, 
                 void *recvbuf, const int *recvcounts, const int *displs,
                 int root)
 {
   MPI_Gatherv(sendbuf, sendcount, MPI_INT, recvbuf, recvcounts,
                 displs, MPI_INT, root, m_comm);
-
 }
 
 void Hmpi::GathervDbl(const void *sendbuf, int sendcount, 
@@ -67,7 +90,6 @@ void Hmpi::GathervDbl(const void *sendbuf, int sendcount,
 {
   MPI_Gatherv(sendbuf, sendcount, MPI_DOUBLE, recvbuf, recvcounts,
                 displs, MPI_DOUBLE, root, m_comm);
-
 }
 
 void Hmpi::ScattervDbl(void *sendbuf, int *sendcnts, int *displs,
@@ -111,7 +133,18 @@ void Hmpi::GlobalInt(int* in_out_buffer, int count, MPI_Op operation)
 
   MPI_Allreduce(send_buffer.data(), in_out_buffer, count, MPI_INT,
       operation, m_comm);
- 
+}
+
+void Hmpi::GlobalInt(std::vector<int>& in_out_buffer, MPI_Op operation)
+{
+
+  HDDTRACES
+  std::vector<int> tmp(in_out_buffer);
+  HDDTRACES
+  int mpimsg = MPI_Allreduce(tmp.data(), in_out_buffer.data(), in_out_buffer.size(), 
+      MPI_INT, operation, m_comm);
+  std::cout << "mpimsg: " << mpimsg << std::endl;
+  HDDTRACES
 }
 
 void Hmpi::Barrier()
