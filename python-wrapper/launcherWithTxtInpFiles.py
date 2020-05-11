@@ -1,6 +1,9 @@
 from __future__ import division
 from __future__ import print_function
 
+import sys
+import trace
+
 import numpy as np
 from pythonHdd import PyHddApi
 from mpi4py import MPI
@@ -9,63 +12,86 @@ comm = MPI.COMM_WORLD
 mpirank = comm.rank
 mpisize = comm.size
 
-if mpirank==0: print("start ... Python")
 
-wdir = "/home/mar440/WorkSpace/test/"
-fileBuffer = [] # for to easy 'close' all txt-files in the end
+launchWitrTraces = False
 
-fnameGlbDirichlet   = "dmpGlbDirichletIds_"+str(mpirank)+".txt"
-fGlbDirichlet = open(wdir+fnameGlbDirichlet)
-fileBuffer.append(fGlbDirichlet)
+def runParallel():
+    if mpirank==0: print("start ... Python")
 
-fnameGlbDOFs        = "dmpGlbDOFs_"+str(mpirank)+".txt"
-fGlbDOFs = open(wdir+fnameGlbDOFs)
-fileBuffer.append(fGlbDOFs)
+    wdir = "/home/mar440/WorkSpace/test/"
+    fileBuffer = [] # for to easy 'close' all txt-files in the end
 
-fnameLocLinOper     = "dmpLocLinOperator_"+str(mpirank)+".txt"
-fLocLinOper = open(wdir+fnameLocLinOper)
-fileBuffer.append(fLocLinOper)
+    fnameGlbDirichlet   = "dmpGlbDirichletIds_"+str(mpirank)+".txt"
+    fGlbDirichlet = open(wdir+fnameGlbDirichlet)
+    fileBuffer.append(fGlbDirichlet)
 
-fnameLocRHS         = "dmpLocRHS_"+str(mpirank)+".txt"
-fLocRHS= open(wdir+fnameLocRHS);
-fileBuffer.append(fLocRHS)
+    fnameGlbDOFs        = "dmpGlbDOFs_"+str(mpirank)+".txt"
+    fGlbDOFs = open(wdir+fnameGlbDOFs)
+    fileBuffer.append(fGlbDOFs)
 
-hdd = PyHddApi(comm)
-hdd.Message("Beginning ...") # pass any message to hdd-output file
-hdd.ParseJsonFile(wdir+"hddConf.json")
-GlbDOFs_readlines = fGlbDOFs.readlines()
+    fnameLocLinOper     = "dmpLocLinOperator_"+str(mpirank)+".txt"
+    fLocLinOper = open(wdir+fnameLocLinOper)
+    fileBuffer.append(fLocLinOper)
 
-nElements = len(GlbDOFs_readlines)
-for iline in GlbDOFs_readlines:
-    eqIndx = np.array(iline.split(),dtype=np.int32)
-    hdd.SymbolicAssembling(eqIndx)
-DirDOFs = np.array(fGlbDirichlet.readline().split(),dtype=np.int32)
-hdd.SetDirichletDOFs(DirDOFs)
-hdd.FinalizeSymbolicAssembling()
+    fnameLocRHS         = "dmpLocRHS_"+str(mpirank)+".txt"
+    fLocRHS= open(wdir+fnameLocRHS);
+    fileBuffer.append(fLocRHS)
 
-LocLinOper_readlines = fLocLinOper.readlines()
-LocRHS_readlines = fLocRHS.readlines()
+    hdd = PyHddApi(comm)
+    hdd.Message("Beginning ...") # pass any message to hdd-output file
+    hdd.ParseJsonFile(wdir+"hddConf.json")
+    GlbDOFs_readlines = fGlbDOFs.readlines()
 
-for cnt in range(nElements):
-    eqIndx = \
-        np.array(LocLinOper_readlines[2*cnt].split(),
-                dtype=np.int32)
-    locK = \
-        np.array(LocLinOper_readlines[2*cnt +1].split(),
-                dtype=np.float64)
-    locRHS = \
-        np.array(LocRHS_readlines[2*cnt +1].split(),
-                dtype=np.float64)
-    neqLoc = eqIndx.shape[0]
-    locK = locK.reshape((neqLoc,neqLoc))
-    hdd.NumericAssembling(eqIndx,locK,locRHS)
+    nElements = len(GlbDOFs_readlines)
+    for iline in GlbDOFs_readlines:
+        eqIndx = np.array(iline.split(),dtype=np.int32)
+        hdd.SymbolicAssembling(eqIndx)
+    DirDOFs = np.array(fGlbDirichlet.readline().split(),dtype=np.int32)
+    hdd.SetDirichletDOFs(DirDOFs)
+    hdd.FinalizeSymbolicAssembling()
 
-hdd.FinalizeNumericAssembling()
-solution = hdd.Solve()
+    LocLinOper_readlines = fLocLinOper.readlines()
+    LocRHS_readlines = fLocRHS.readlines()
 
-np.savetxt(wdir+"sol_"+str(mpirank)+".txt",solution, fmt='%.18e')
-if mpirank == 0: print("end ... Python")
+    for cnt in range(nElements):
+        eqIndx = \
+            np.array(LocLinOper_readlines[2*cnt].split(),
+                    dtype=np.int32)
+        locK = \
+            np.array(LocLinOper_readlines[2*cnt +1].split(),
+                    dtype=np.float64)
+        locRHS = \
+            np.array(LocRHS_readlines[2*cnt +1].split(),
+                    dtype=np.float64)
+        neqLoc = eqIndx.shape[0]
+        locK = locK.reshape((neqLoc,neqLoc))
+        hdd.NumericAssembling(eqIndx,locK,locRHS)
 
-for ff in fileBuffer:
-    ff.close()
+    hdd.FinalizeNumericAssembling()
+    solution = hdd.Solve()
+
+    np.savetxt(wdir+"sol_"+str(mpirank)+".txt",solution, fmt='%.18e')
+    if mpirank == 0: print("end ... Python")
+
+    for ff in fileBuffer:
+        ff.close()
+
+if launchWitrTraces:
+    runParallel()
+else:
+    # define Trace object: trace line numbers at runtime, exclude some modules
+    tracer = trace.Trace(
+        ignoredirs=[sys.prefix, sys.exec_prefix],
+        ignoremods=[
+            'inspect', 'contextlib', '_bootstrap',
+            '_weakrefset', 'abc', 'posixpath', 'genericpath', 'textwrap'
+        ],
+        trace=1,
+        count=0)
+
+    # by default trace goes to stdout
+    # redirect to a different file for each processes
+    sys.stdout = open('trace_{:04d}.txt'.format(mpirank), 'w')
+
+    tracer.runfunc(runParallel)
 
