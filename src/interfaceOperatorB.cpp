@@ -3,7 +3,6 @@
 #include <iostream>
 
 
-
 #include "../include/stiffnessMatrix.hpp"
 #include "../include/linearAlgebra.hpp"
 #include "../include/linearAlgebra.hpp"
@@ -97,8 +96,9 @@ void InterfaceOperatorB::multB(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
       m_dbufToSend.row(row) = scale * in.row(iItf.m_interfaceDOFs[row]);
     }
 
-    m_p_domain->hmpi.SendDbl(m_dbufToSend.data(),nDOFs * nRHS, iItf.GetNeighbRank());
-    m_p_domain->hmpi.RecvDbl(m_dbufToRecv.data(),nDOFs * nRHS, iItf.GetNeighbRank());
+    m_p_domain->hmpi.IsendDbl(m_dbufToSend.data(),nDOFs * nRHS, iItf.GetNeighbRank());
+    m_p_domain->hmpi.IrecvDbl(m_dbufToRecv.data(),nDOFs * nRHS, iItf.GetNeighbRank());
+    m_p_domain->hmpi.Wait();
 
     for (int row = 0; row < nDOFs; row++)
       out.row(row + offset) += m_dbufToRecv.row(row);
@@ -146,9 +146,11 @@ void InterfaceOperatorB::FetiCoarseSpace(
     std::vector<int>& defectPerSubdomains)
 {
 
+  HDDTRACES
   m_p_defectPerSubdomains =  &defectPerSubdomains;
+  HDDTRACES
   _FetiCoarseSpaceAssembling();
-
+  HDDTRACES
 #if !defined(GTG_ALL_NODES)
   if (m_p_domain->GetRank()  == m_root) {
 #endif
@@ -164,6 +166,7 @@ void InterfaceOperatorB::FetiCoarseSpace(
 void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
 {
 
+  HDDTRACES
   auto kerK = m_p_domain->GetStiffnessMatrix()->GetKernel();
   int myDefect = m_p_domain->GetStiffnessMatrix()->GetDefect(); 
   auto interfaces = m_p_domain->GetInterfaces();
@@ -172,16 +175,17 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   std::vector<Eigen::MatrixXd> BR_myRank(interfaces.size(),Eigen::MatrixXd(0,0));
   std::vector<Eigen::MatrixXd> BR_neighb(interfaces.size(),Eigen::MatrixXd(0,0));
 
+  HDDTRACES
   // GtG
   //  - diagonal block
   Eigen::MatrixXd GtG_local_diag = Eigen::MatrixXd::Zero(myDefect,myDefect);
   //  - offdiagonal blocks 
   std::vector<Eigen::MatrixXd> GtG_local_offdiag(interfaces.size(),Eigen::MatrixXd(0,0));
 
-
+  HDDTRACES
   int nRHS_myRank = myDefect;
 
-
+  HDDTRACES
   // each rank computes whole block row 
   for (int cntI = 0; cntI < (int)interfaces.size(); cntI++)
   {
@@ -208,8 +212,9 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     for (int row = 0; row < neqIntf; row++)
       BR_myRank[cntI].row(row) = (-1) * scale * (*kerK).row(iItf.m_interfaceDOFs[row]);
 
-    m_p_domain->hmpi.SendDbl(BR_myRank[cntI].data(),neqIntf * nRHS_myRank, iItf.GetNeighbRank());
-    m_p_domain->hmpi.RecvDbl(BR_neighb[cntI].data(),neqIntf * nRHS_neighb, iItf.GetNeighbRank());
+    m_p_domain->hmpi.IsendDbl(BR_myRank[cntI].data(),neqIntf * nRHS_myRank, iItf.GetNeighbRank());
+    m_p_domain->hmpi.IrecvDbl(BR_neighb[cntI].data(),neqIntf * nRHS_neighb, iItf.GetNeighbRank());
+    m_p_domain->hmpi.Wait();
 
 #if DBG > 4
     std::cout<< "BR_myRank - myRank: " << m_p_domain->GetRank() << std::endl;
@@ -219,16 +224,29 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     std::cout<< BR_neighb[cntI]   << std::endl;
 #endif
     // diagonal GtG(i = myRank, j = myRank)
-    GtG_local_diag += BR_myRank[cntI].transpose() * BR_myRank[cntI];
-    // offdiagonal GtG(i = myRank, j = neighbours)
-    GtG_local_offdiag[cntI] = BR_myRank[cntI].transpose() * BR_neighb[cntI];
+    
+    if (BR_myRank[cntI].size() > 0 && BR_myRank[cntI].size() > 0)
+    {
+      GtG_local_diag += BR_myRank[cntI].transpose() * BR_myRank[cntI];
+      // offdiagonal GtG(i = myRank, j = neighbours)
+      GtG_local_offdiag[cntI] = BR_myRank[cntI].transpose() * BR_neighb[cntI];
+    }
+    else
+    {
+#if DBG > 4
+      std::cout<< "no contribution to GtG\n";
+#endif
+    }
   }
+  HDDTRACES
 
+//  m_p_domain->hmpi.Barrier();
   // empty buffers
   for (int cntI = 0; cntI < (int)interfaces.size(); cntI++){
     BR_myRank[cntI].resize(0,0); BR_neighb[cntI].resize(0,0);
   }
 
+  HDDTRACES
 
 #if DBG > 4
   std::cout<< "GtG_local_diag: \n";
@@ -258,12 +276,12 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   std::cout << "numberOfInterfacesPerRank:" << numberOfInterfacesPerRank << std::endl;
 #endif
 
-  m_p_domain->hmpi.Barrier();
+//  m_p_domain->hmpi.Barrier();
 
-
+  HDDTRACES
   m_p_domain->hmpi.GatherInt(&numberOfInterfacesPerRank, 1,
                numberOfNeighboursRoot.data(), 1 ,m_root);
-
+  HDDTRACES
 
 #if DBG > 2
   if (m_p_domain->GetRank() == 0)
@@ -282,12 +300,11 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
 #endif
 
 
-
+  HDDTRACES
 
   std::vector<int> listOfInterfacesLocal(0);
   for (auto& itf : interfaces)
     listOfInterfacesLocal.push_back(itf.GetNeighbRank());
-
 
   int edgeSum=0;
   if (m_p_domain->GetRank()  == m_root){
@@ -302,6 +319,7 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   }
 
 
+  HDDTRACES
 
   m_p_domain->hmpi.GathervInt(
       listOfInterfacesLocal.data(), listOfInterfacesLocal.size(), // to send
@@ -309,7 +327,7 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
       numberOfNeighboursRoot.data(),m_listOfNeighboursColumPtr.data(),  m_root);
 
 
-
+  HDDTRACES
 
 
   int sizeOfSendingBuffer = myDefect * myDefect;
@@ -320,12 +338,12 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     sizeOfSendingBuffer += tmp0;
   }
 
-
+  HDDTRACES
 
 #if DBG > 2
   std::cout << "sizeOfSendingBuffer: " << sizeOfSendingBuffer<< '\n';
 #endif
-
+  HDDTRACES
 
   std::vector<double> sendingBuffer(sizeOfSendingBuffer,0);
 
@@ -785,8 +803,9 @@ for (int cntI = 0; cntI < (int)interfaces.size(); cntI++)
     for (int row = 0; row < neqIntf; row++)
       G_myRank[cntI].row(row) = (-1) * scale * (*kerK).row(iItf.m_interfaceDOFs[row]);
 
-    m_p_domain->hmpi.SendDbl(G_myRank[cntI].data(),neqIntf * myDefect, iItf.GetNeighbRank());
-    m_p_domain->hmpi.RecvDbl(G_neighb[cntI].data(),neqIntf * neighbDefect, iItf.GetNeighbRank());
+    m_p_domain->hmpi.IsendDbl(G_myRank[cntI].data(),neqIntf * myDefect, iItf.GetNeighbRank());
+    m_p_domain->hmpi.IrecvDbl(G_neighb[cntI].data(),neqIntf * neighbDefect, iItf.GetNeighbRank());
+    m_p_domain->hmpi.Wait();
 
     // myRank contribution
     RHS_Beta_s.block(offset_myRank,0,myDefect,colsZs) +=
