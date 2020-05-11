@@ -170,7 +170,7 @@ void StiffnessMatrix::FinalizeNumericPart(const std::vector<int>& DirDOFs)
   m_trK.shrink_to_fit();
 
   // build-in factorization based on PARDISO
-  DBGPRINT
+  HDDTRACES
   m_kerK = _GetKernelFromK(m_spmatK);
   m_nullPivots = GetNullPivots(m_kerK);
   m_FactorizeLinearOperator(m_nullPivots);
