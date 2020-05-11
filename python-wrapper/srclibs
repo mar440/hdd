@@ -1,0 +1,4 @@
+export LD_PRELOAD=$MKLROOT/mkl/lib/intel64/libmkl_core.so:$MKLROOT/mkl/lib/intel64/libmkl_sequential.so
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PATH2HDDLIB
+
+
