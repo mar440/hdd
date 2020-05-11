@@ -6,95 +6,116 @@ import numpy as np
 from pythonHdd import PyHddApi
 from mpi4py import MPI
 
+import sys
+import trace
+
 import FEM_meshgenerator as m3d
 import FEM_assembler as assmbl
-
-
-nx = ny = nz = 2
-
-Nx = 2
-Ny = 1
-Nz = 1
-
-Lx = 1.0
-Ly = 1.0
-Lz = 1.0
 
 mpicomm = MPI.COMM_WORLD
 mpirank = mpicomm.rank
 
+launchWithTraces = False
 
-print("start ... Python")
-hdd= PyHddApi(mpicomm)
-hdd.Message("Beginning ...")
-hdd.ParseJsonFile("hddConf.json")
+def runParallel():
+    nx = 4
+    ny = 4
+    nz = 4
 
-mesh = m3d.MeshGenerator({'Nx':Nx, 'Ny':Ny , 'Nz':Nz,
-            'nx':nx , 'ny':ny , 'nz' : nz,
-            'Lx':Lx , 'Ly':Ly , 'Lz' : Lz })
+    Nx = 3
+    Ny = 3
+    Nz = 3
 
-
-dimension = 3
-Ex = 1.1
-mu = 0.3
-
-coordinates = mesh['coordinates']
-elements    = mesh['elements']
-edges       = mesh['edges']
-decomp      = mesh['decomp']
-nElements   = elements.shape[0]
-volF        = np.ones(3)
-
-DirichletFace = 0
-DirPts = \
-    np.unique(edges[edges[:,4]==DirichletFace,0:4].ravel())
-nDP = DirPts.shape[0]
-
-dirichletDofs = np.zeros(3 * nDP,dtype=np.int32)
-dirichletDofs[0::3] = 3 * DirPts + 0
-dirichletDofs[1::3] = 3 * DirPts + 1
-dirichletDofs[2::3] = 3 * DirPts + 2
+    Lx = Ly = Lz = 1.0
 
 
-print(decomp)
+    if mpirank==0:print("start ... Python")
+    hdd= PyHddApi(mpicomm)
+    hdd.Message("Beginning ...")
+    hdd.ParseJsonFile("hddConf.json")
 
-for i in range(nElements):
-    if (decomp[i] == mpirank):
-        ielem = elements[i,:]
-        nP =  ielem.shape[0]
-        neqLoc = nP * dimension
-        # ul = [ul1x,ul2x,ul3x,...., ul1y,ul2y,ul3y,.....]
-        indx = np.zeros(neqLoc,dtype=np.int32)
-        indx[0*nP:1*nP:] = ielem * 3 + 0
-        indx[1*nP:2*nP:] = ielem * 3 + 1
-        indx[2*nP:3*nP:] = ielem * 3 + 2
-        hdd.SymbolicAssembling(indx)
-###
-hdd.SetDirichletDOFs(dirichletDofs)
-hdd.FinalizeSymbolicAssembling()
-#
-for i in range(nElements):
-    if (decomp[i] == mpirank):
-        ielem = elements[i,:]
-        coordinatesLoc = coordinates[ielem,]
-        nP =  ielem.shape[0]
-        neqLoc = nP * dimension
-        indx = np.zeros(neqLoc,dtype=np.int32)
-        indx[0*nP:1*nP:] = ielem * 3 + 0
-        indx[1*nP:2*nP:] = ielem * 3 + 1
-        indx[2*nP:3*nP:] = ielem * 3 + 2
+    mesh = m3d.MeshGenerator({'Nx':Nx, 'Ny':Ny , 'Nz':Nz,
+                'nx':nx , 'ny':ny , 'nz' : nz,
+                'Lx':Lx , 'Ly':Ly , 'Lz' : Lz })
 
-        localElemData = assmbl.stima3e8({'coordinatesLoc':coordinatesLoc,
-            'Ex':Ex, 'mu':mu, 'volF':volF})
-        Ke = localElemData['Ke']
-        Fe = localElemData['fe']
-        hdd.NumericAssembling(indx,Ke,Fe)
+    dimension = 3
+    Ex = 1.1
+    mu = 0.3
 
-hdd.FinalizeNumericAssembling()
+    coordinates = mesh['coordinates']
+    elements    = mesh['elements']
+    #edges       = mesh['edges']
+    decomp      = mesh['decomp']
+    nElements   = elements.shape[0]
+    volF        = np.ones(3)
+
+    DirPts = np.where(mesh['coordinates'][:,2] == 0)[0]
+    nDP = DirPts.shape[0]
+
+    dirichletDofs = np.zeros(3 * nDP,dtype=np.int32)
+    dirichletDofs[0::3] = 3 * DirPts + 0
+    dirichletDofs[1::3] = 3 * DirPts + 1
+    dirichletDofs[2::3] = 3 * DirPts + 2
 
 
-solution = hdd.Solve()
+    for i in range(nElements):
+        if (decomp[i] == mpirank):
+            ielem = elements[i,:]
+            nP =  ielem.shape[0]
+            neqLoc = nP * dimension
+            indx = np.zeros(neqLoc,dtype=np.int32)
+            indx[0*nP:1*nP:] = ielem * 3 + 0
+            indx[1*nP:2*nP:] = ielem * 3 + 1
+            indx[2*nP:3*nP:] = ielem * 3 + 2
+            hdd.SymbolicAssembling(indx)
+    ###
+    hdd.SetDirichletDOFs(dirichletDofs)
+    hdd.FinalizeSymbolicAssembling()
+    #
+    for i in range(nElements):
+        if (decomp[i] == mpirank):
+            ielem = elements[i,:]
+            coordinatesLoc = coordinates[ielem,]
+            nP =  ielem.shape[0]
+            neqLoc = nP * dimension
+            indx = np.zeros(neqLoc,dtype=np.int32)
+            indx[0*nP:1*nP:] = ielem * 3 + 0
+            indx[1*nP:2*nP:] = ielem * 3 + 1
+            indx[2*nP:3*nP:] = ielem * 3 + 2
 
-print(solution)
+            localElemData = assmbl.stima3e8({'coordinatesLoc':coordinatesLoc,
+                'Ex':Ex, 'mu':mu, 'volF':volF})
+            Ke = localElemData['Ke'].copy()
+            Fe = localElemData['fe'].copy()
+            hdd.NumericAssembling(indx,Ke,Fe)
 
-if mpirank == 0: print("end ... Python")
+    hdd.FinalizeNumericAssembling()
+
+
+    solution = hdd.Solve()
+
+#    print(solution)
+
+    if mpirank == 0: print("end ... Python")
+
+
+
+if launchWithTraces:
+    # define Trace object: trace line numbers at runtime, exclude some modules
+    tracer = trace.Trace(
+        ignoredirs=[sys.prefix, sys.exec_prefix],
+        ignoremods=[
+            'inspect', 'contextlib', '_bootstrap',
+            '_weakrefset', 'abc', 'posixpath', 'genericpath', 'textwrap'
+        ],
+        trace=1,
+        count=0)
+
+    # by default trace goes to stdout
+    # redirect to a different file for each processes
+    sys.stdout = open('trace_{:04d}.txt'.format(mpirank), 'w')
+
+    tracer.runfunc(runParallel)
+
+else:
+    runParallel()
