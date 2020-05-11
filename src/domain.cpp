@@ -86,7 +86,7 @@ void Domain::SetDirichletDOFs(std::vector<int>& glbDirDOFs)
 
     if (  it != m_g2l.end())
     {
-      m_DirichletDOFs.push_back(it->second); 
+      m_DirichletDOFs.push_back(it->second);
       cntD++;
     }
   }
@@ -109,28 +109,38 @@ void Domain::m_dbg_printNeighboursRanks()
 
 void Domain::_SearchNeighbours(std::vector<int>& inout)
 {
+  HDDTRACES
 
   auto startTime = std::chrono::steady_clock::now();
 
+  HDDTRACES
   // get max DOF index in global numbering
   auto maxDofIndOnDomain =
     max_element(m_l2g.begin(), m_l2g.end());
 
-  int maxDofInd = *maxDofIndOnDomain;
+  int maxDofInd =(int) *maxDofIndOnDomain + 1;
   hmpi.GlobalInt(&maxDofInd,1,MPI_MAX);
   if (m_mpirank == 0) std::cout << "maxDofInd: " << maxDofInd<< '\n';
 
+  HDDTRACES
   std::vector<int> multiplicity(maxDofInd,0);
 
+  HDDTRACES
   for (auto& iii : m_l2g)
     multiplicity[iii] = 1;
 
+//  std::cout<< "MPC_SIZE: " << multiplicity.size() << '\n';
+//  std::cout << "SSS=====\n";
+//  for (auto& iii : multiplicity) std::cout << ' ' << iii;
+//  std::cout << "\nEEE=====\n";
+
+  HDDTRACES
+
+//hmpi.GlobalInt(multiplicity,MPI_SUM);
   hmpi.GlobalInt(multiplicity.data(),multiplicity.size(),MPI_SUM);
 
-//  std::cout << "SSS=====\n";
-//  for (auto& iii : multiplicity)
-//    std::cout << iii << '\n';
-//  std::cout << "EEE=====\n";
+  HDDTRACES
+
 
   std::vector<int> dofOnIntf(0);
   for (auto& iii : m_l2g)
@@ -142,6 +152,7 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
 //  for (auto& iii : dofOnIntf) std::cout << iii << '\n';
 //  std::cout << "EEE=====\n";
 
+  HDDTRACES
   std::vector<int> numberOfDofOnIntfZ0(m_mpisize,0);
   std::vector<int> ptrZ0(m_mpisize,0);
 
@@ -152,6 +163,7 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
   hmpi.GatherInt(&numberOfDofOnIntf, 1,
                numberOfDofOnIntfZ0.data(), 1 , root);
 
+  HDDTRACES
   int sumIntfDofs(0);
   if (m_mpirank == root)
   {
@@ -164,6 +176,7 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
 //    std::cout << "EEE=====\n";
   }
 
+  HDDTRACES
 // ----------------------------------
   int edgeSum=0;
 
@@ -179,6 +192,7 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
     ptrZ0[m_mpisize] = edgeSum;
   }
 // ----------------------------------  
+  HDDTRACES
 
   hmpi.GathervInt(dofOnIntf.data(), dofOnIntf.size(), // to send
       intfDofsOnRoot.data(),
@@ -189,6 +203,7 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
   std::map<int,std::list<int>> dofAndDomain;
   int sumOfInterfacesGlobal(0);
 
+  HDDTRACES
   if (m_mpirank  == root)
   {
     for (int isub = 0; isub < m_mpisize; isub++)
@@ -239,6 +254,7 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
     }
   } // rank == root 
 
+  HDDTRACES
   std::vector<int> numberOfNeighboursRoot;
   int numberOfNeighboursLocal(0);
 
@@ -267,6 +283,7 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
     std::cout << intf << ' ';
   std::cout << '\n';
 
+  HDDTRACES
 //
   hmpi.ScattervInt(m_listOfNeighbours.data(), numberOfNeighboursRoot.data(),
       m_listOfNeighboursColumPtr.data(), 
@@ -283,18 +300,21 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
   std::cout << std::fixed << std::setprecision(2) << 
       "Search neighbours: " << elapsed_seconds.count() << " s\n";
 
+  HDDTRACES
 
 }
 
 void Domain::SetInterfaces()
 {
 
-
+  HDDTRACES
 
   if ((int)m_neighboursRanks.size() == 0)
   {
     _SearchNeighbours(m_neighboursRanks);
   }
+
+  HDDTRACES
 
   int nInterf = (int)m_neighboursRanks.size();
 
@@ -302,7 +322,7 @@ void Domain::SetInterfaces()
   for (int iR = 0; iR < nInterf; iR++)
     m_interfaces[iR].SetNeighbRank(m_neighboursRanks[iR]);
 
-
+  HDDTRACES
 
   for (int i_ = 0 ; i_ < nInterf; i_++ )
   {
@@ -373,6 +393,7 @@ void Domain::SetInterfaces()
 
   }
 
+  HDDTRACES
 
   // set weight and get dual number of dofs
   m_neqDual = 0;
@@ -395,8 +416,6 @@ void Domain::SetInterfaces()
   std::cout << std::endl;
 
 #endif
-
-
 
 }
 
