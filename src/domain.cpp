@@ -10,6 +10,10 @@
 
 #include <chrono>
 
+
+#define TAG0 100
+#define TAG1 101
+
 Domain::Domain(MPI_Comm* _pcomm): hmpi(_pcomm)
 {
   m_comm =  *_pcomm;
@@ -328,21 +332,40 @@ void Domain::SetInterfaces()
   
   //##################################
   // 1 get my neighbours neq (number of DOFs) 
-  for (int intfId = 0 ; intfId < nInterf; intfId++ )
   {
-    Interface& i_intfc = m_interfaces[intfId];
 
-    int neighRank = i_intfc.GetNeighbRank();
-    int neq_neighb(0);
+    std::vector<int> neq_neighbs(nInterf,0);
+    std::vector<MPI_Request> requests(0);
 
-    hmpi.IsendInt(&m_neqPrimal,1 , neighRank);
-    hmpi.IrecvInt(&neq_neighb,1 , neighRank);
-    hmpi.Wait();
+    for (int intfId = 0 ; intfId < nInterf; intfId++ )
+    {
+      Interface& i_intfc = m_interfaces[intfId];
 
-    i_intfc.SetNeighbNumbOfEqv(neq_neighb);
+      int neighRank = i_intfc.GetNeighbRank();
+
+      MPI_Request newRequest0;
+      MPI_Isend(&m_neqPrimal,1,MPI_INT,neighRank,TAG0,
+          hmpi.GetComm(), &newRequest0);
+      requests.push_back(newRequest0);
+
+      MPI_Request newRequest1;
+      MPI_Irecv(&neq_neighbs[intfId],1,MPI_INT,neighRank,TAG0,
+          hmpi.GetComm(), &newRequest1);
+      requests.push_back(newRequest1);
+
+    }
+
+    std::vector<MPI_Status> status(requests.size());
+    MPI_Waitall((int)requests.size(),requests.data(),status.data());
+
+
+    for (int intfId = 0 ; intfId < nInterf; intfId++ )
+    {
+      Interface& i_intfc = m_interfaces[intfId];
+      i_intfc.SetNeighbNumbOfEqv(neq_neighbs[intfId]);
+    }
   }
 
-  hmpi.Barrier();
 
   //##################################
   // 2 get neigbour's global DOFs to
@@ -350,86 +373,144 @@ void Domain::SetInterfaces()
   std::vector<std::vector<int>> 
     intersections(nInterf,std::vector<int>(0));
 
-  for (int intfId = 0 ; intfId < nInterf; intfId++ )
   {
 
-    Interface& i_intfc = m_interfaces[intfId];
+    std::vector<MPI_Request> requests(0);
 
-    int neq_neighb  = i_intfc.GetNeighbNumbOfEqv();
-    int neighRank   = i_intfc.GetNeighbRank();
+    std::vector<std::vector<int>> 
+      neighbs_l2g(nInterf,std::vector<int>(0));
 
-    if (m_mpirank > neighRank)
+    for (int intfId = 0 ; intfId < nInterf; intfId++ )
     {
-      // higher rank manages intersection
-      std::vector<int> neighb_l2g(neq_neighb,0);
-      hmpi.RecvInt(neighb_l2g.data(),neq_neighb , neighRank);
-      intersections[intfId] = tools::intersection(m_l2g, neighb_l2g);
+
+      Interface& i_intfc = m_interfaces[intfId];
+
+      int neq_neighb  = i_intfc.GetNeighbNumbOfEqv();
+      int neighRank   = i_intfc.GetNeighbRank();
+
+      MPI_Request newRequest;
+
+      if (m_mpirank > neighRank)
+      {
+//        std::vector<int> neighb_l2g(neq_neighb,0);
+        // higher rank manages intersection
+//        hmpi.RecvInt(neighb_l2g.data(),neq_neighb , neighRank);
+//        intersections[intfId] = tools::intersection(m_l2g, neighb_l2g);
+        neighbs_l2g[intfId].resize(neq_neighb);
+        MPI_Irecv(neighbs_l2g[intfId].data(),neq_neighb,MPI_INT, neighRank,TAG0,
+            hmpi.GetComm(),&newRequest);
+      }
+      else
+      {
+        // send my l2g to neighbour with < rank
+//        hmpi.SendInt(m_l2g.data(),m_l2g.size(), neighRank);
+        MPI_Isend(m_l2g.data(),m_l2g.size(),MPI_INT,neighRank,TAG0,
+            hmpi.GetComm(), &newRequest);
+      }
+      requests.push_back(newRequest);
     }
-    else
+
+    std::vector<MPI_Status> status(requests.size());
+    MPI_Waitall((int)requests.size(),requests.data(),status.data());
+
+    for (int intfId = 0 ; intfId < nInterf; intfId++ )
     {
-      // send my l2g to neighbour with < rank
-      hmpi.SendInt(m_l2g.data(),m_l2g.size(), neighRank);
+      Interface& i_intfc = m_interfaces[intfId];
+      int neighRank   = i_intfc.GetNeighbRank();
+
+      if (m_mpirank > neighRank)
+      {
+        intersections[intfId] = tools::intersection(m_l2g, neighbs_l2g[intfId]);
+        neighbs_l2g[intfId].clear();
+        neighbs_l2g[intfId].shrink_to_fit();
+      }
     }
-//    hmpi.Wait();
+
   }
 
-  hmpi.Barrier();
+//  hmpi.Barrier();
 
   //##################################
   // 3 send intersection DOFs to lower rank 
   std::vector<int> neqInterfaces(nInterf,0);
-  for (int intfId = 0 ; intfId < nInterf; intfId++ )
   {
 
-    Interface& i_intfc = m_interfaces[intfId];
-    int neighRank   = i_intfc.GetNeighbRank();
-
-    if (m_mpirank > neighRank)
+    std::vector<MPI_Request> requests(0);
+    for (int intfId = 0 ; intfId < nInterf; intfId++ )
     {
-      neqInterfaces[intfId] = intersections[intfId].size();
-      hmpi.SendInt(&(neqInterfaces[intfId]),1, neighRank);
-    }
-    else
-    {
-      hmpi.RecvInt(&(neqInterfaces[intfId]),1, neighRank);
+
+      Interface& i_intfc = m_interfaces[intfId];
+      int neighRank   = i_intfc.GetNeighbRank();
+
+      MPI_Request newRequest;
+      if (m_mpirank > neighRank)
+      {
+        neqInterfaces[intfId] = intersections[intfId].size();
+//      hmpi.SendInt(&(neqInterfaces[intfId]),1, neighRank);
+        MPI_Isend(&(neqInterfaces[intfId]),1,MPI_INT,neighRank,TAG0,
+            hmpi.GetComm(), &newRequest);
+      }
+      else
+      {
+  //      hmpi.RecvInt(&(neqInterfaces[intfId]),1, neighRank);
+        MPI_Irecv(&(neqInterfaces[intfId]),1,MPI_INT, neighRank,TAG0,
+            hmpi.GetComm(),&newRequest);
+      }
+      requests.push_back(newRequest);
     }
 
-    std::cout << "neighbRank: " << neighRank;
-    std::cout << " -- neqInterface = " << neqInterfaces[intfId] << std::endl;
+    std::vector<MPI_Status> status(requests.size());
+    MPI_Waitall((int)requests.size(),requests.data(),status.data());
   }
-
-  hmpi.Barrier();
+  //hmpi.Barrier();
 
   //##################################
   // 3 send intersection DOFs to lower rank 
-  for (int intfId = 0 ; intfId < nInterf; intfId++ )
   {
 
-    Interface& i_intfc = m_interfaces[intfId];
-    int neighRank   = i_intfc.GetNeighbRank();
 
-    if (m_mpirank > neighRank)
+    std::vector<MPI_Request> requests(0);
+
+    for (int intfId = 0 ; intfId < nInterf; intfId++ )
     {
-      hmpi.SendInt(intersections[intfId].data(),neqInterfaces[intfId], neighRank);
-    }
-    else
-    {
-      intersections[intfId].resize(neqInterfaces[intfId],-1);
-      hmpi.RecvInt(intersections[intfId].data(),neqInterfaces[intfId], neighRank);
+
+      Interface& i_intfc = m_interfaces[intfId];
+      int neighRank   = i_intfc.GetNeighbRank();
+
+      std::cout << "neighbRank: " << i_intfc.GetNeighbRank();
+      std::cout << " -- neqInterface = " << neqInterfaces[intfId] << std::endl;
+
+      MPI_Request newRequest;
+
+      if (m_mpirank > neighRank)
+      {
+        //hmpi.SendInt(intersections[intfId].data(),neqInterfaces[intfId], neighRank);
+        MPI_Isend(intersections[intfId].data(),neqInterfaces[intfId],MPI_INT,
+            neighRank,TAG0, hmpi.GetComm(), &newRequest);
+      }
+      else
+      {
+        intersections[intfId].resize(neqInterfaces[intfId],-1);
+        //hmpi.RecvInt(intersections[intfId].data(),neqInterfaces[intfId], neighRank);
+        MPI_Irecv(intersections[intfId].data(),neqInterfaces[intfId],MPI_INT, 
+            neighRank,TAG0, hmpi.GetComm(),&newRequest);
+      }
+
+      requests.push_back(newRequest);
+
     }
 
-    i_intfc.m_interfaceDOFs.resize(neqInterfaces[intfId]);
-    for (int dof = 0; dof < neqInterfaces[intfId]; dof ++)
-      i_intfc.m_interfaceDOFs[dof] =  m_g2l[intersections[intfId][dof]];
-//
-//
-//
-#if DBG > 2
-    std::cout  << "#interf. dofs:  ";
-    for (auto& ii : i_intfc.m_interfaceDOFs)
-      std::cout << ii << ' ' ;
-    std::cout<< std::endl;
-#endif
+
+    std::vector<MPI_Status> status(requests.size());
+    MPI_Waitall((int)requests.size(),requests.data(),status.data());
+
+    for (int intfId = 0 ; intfId < nInterf; intfId++ )
+    {
+      Interface& i_intfc = m_interfaces[intfId];
+      i_intfc.m_interfaceDOFs.resize(neqInterfaces[intfId]);
+      for (int dof = 0; dof < neqInterfaces[intfId]; dof ++)
+        i_intfc.m_interfaceDOFs[dof] =  m_g2l[intersections[intfId][dof]];
+    }
 
   }
 
