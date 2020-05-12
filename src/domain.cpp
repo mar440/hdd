@@ -77,21 +77,14 @@ void Domain::SetDirichletDOFs(std::vector<int>& glbDirDOFs)
   std::cout << "Dirichlet: glb -> loc \n";
   std::cout <<"m_g2l.size(): " << m_g2l.size() << '\n';
 
-  int cntD(0);
-
   for (auto& id : glbDirDOFs) 
   {
-
     auto it = m_g2l.find(id);
-
     if (  it != m_g2l.end())
-    {
       m_DirichletDOFs.push_back(it->second);
-      cntD++;
-    }
   }
 
-  std::cout << "number of Dir. DOFs: " << cntD << '\n';
+  std::cout << "number of Dir. DOFs: " << m_DirichletDOFs.size() << '\n';
 }
 
 
@@ -109,6 +102,9 @@ void Domain::m_dbg_printNeighboursRanks()
 
 void Domain::_SearchNeighbours(std::vector<int>& inout)
 {
+
+
+  // TODO make it parallel - independently on domain decomposition
   HDDTRACES
 
   auto startTime = std::chrono::steady_clock::now();
@@ -307,12 +303,18 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
 void Domain::SetInterfaces()
 {
 
+
+  // SET m_interfaces done in 3 steps
+  //    1 - number of DOFs exchanging between neigbhours
+  //    2 - sending DOFs from lower to higher rank and
+  //        determine the intersection
+  //    3 - sending intersection (from higher to lower rank)
+
   HDDTRACES
 
+  // if "neighbours" ranks not known apriori
   if ((int)m_neighboursRanks.size() == 0)
-  {
     _SearchNeighbours(m_neighboursRanks);
-  }
 
   HDDTRACES
 
@@ -323,64 +325,102 @@ void Domain::SetInterfaces()
     m_interfaces[iR].SetNeighbRank(m_neighboursRanks[iR]);
 
   HDDTRACES
-
-  for (int i_ = 0 ; i_ < nInterf; i_++ )
+  
+  //##################################
+  // 1 get my neighbours neq (number of DOFs) 
+  for (int intfId = 0 ; intfId < nInterf; intfId++ )
   {
-
-    Interface& i_intfc = m_interfaces[i_];
+    Interface& i_intfc = m_interfaces[intfId];
 
     int neighRank = i_intfc.GetNeighbRank();
     int neq_neighb(0);
 
-
-    hmpi.SendInt(&m_neqPrimal,1 , neighRank);
-    hmpi.RecvInt(&neq_neighb,1 , neighRank);
+    hmpi.IsendInt(&m_neqPrimal,1 , neighRank);
+    hmpi.IrecvInt(&neq_neighb,1 , neighRank);
+    hmpi.Wait();
 
     i_intfc.SetNeighbNumbOfEqv(neq_neighb);
-    std::vector<int> intersection(0);
+  }
+
+  hmpi.Barrier();
+
+  //##################################
+  // 2 get neigbour's global DOFs to
+  // determine common DOFs (intersection)
+  std::vector<std::vector<int>> 
+    intersections(nInterf,std::vector<int>(0));
+
+  for (int intfId = 0 ; intfId < nInterf; intfId++ )
+  {
+
+    Interface& i_intfc = m_interfaces[intfId];
+
+    int neq_neighb  = i_intfc.GetNeighbNumbOfEqv();
+    int neighRank   = i_intfc.GetNeighbRank();
 
     if (m_mpirank > neighRank)
     {
-      // greather rank manages intersection
+      // higher rank manages intersection
       std::vector<int> neighb_l2g(neq_neighb,0);
       hmpi.RecvInt(neighb_l2g.data(),neq_neighb , neighRank);
-      intersection = tools::intersection(m_l2g, neighb_l2g);
+      intersections[intfId] = tools::intersection(m_l2g, neighb_l2g);
     }
     else
     {
       // send my l2g to neighbour with < rank
       hmpi.SendInt(m_l2g.data(),m_l2g.size(), neighRank);
     }
+//    hmpi.Wait();
+  }
 
-    int neqInterface(0);
+  hmpi.Barrier();
+
+  //##################################
+  // 3 send intersection DOFs to lower rank 
+  std::vector<int> neqInterfaces(nInterf,0);
+  for (int intfId = 0 ; intfId < nInterf; intfId++ )
+  {
+
+    Interface& i_intfc = m_interfaces[intfId];
+    int neighRank   = i_intfc.GetNeighbRank();
 
     if (m_mpirank > neighRank)
     {
-      neqInterface = intersection.size();
-      hmpi.SendInt(&neqInterface,1, neighRank);
+      neqInterfaces[intfId] = intersections[intfId].size();
+      hmpi.SendInt(&(neqInterfaces[intfId]),1, neighRank);
     }
     else
     {
-      hmpi.RecvInt(&neqInterface,1, neighRank);
+      hmpi.RecvInt(&(neqInterfaces[intfId]),1, neighRank);
     }
 
     std::cout << "neighbRank: " << neighRank;
-    std::cout << " -- neqInterface = " << neqInterface << std::endl;
+    std::cout << " -- neqInterface = " << neqInterfaces[intfId] << std::endl;
+  }
 
+  hmpi.Barrier();
+
+  //##################################
+  // 3 send intersection DOFs to lower rank 
+  for (int intfId = 0 ; intfId < nInterf; intfId++ )
+  {
+
+    Interface& i_intfc = m_interfaces[intfId];
+    int neighRank   = i_intfc.GetNeighbRank();
 
     if (m_mpirank > neighRank)
     {
-      hmpi.SendInt(intersection.data(),neqInterface, neighRank);
+      hmpi.SendInt(intersections[intfId].data(),neqInterfaces[intfId], neighRank);
     }
     else
     {
-      intersection.resize(neqInterface,-1);
-      hmpi.RecvInt(intersection.data(),neqInterface, neighRank);
+      intersections[intfId].resize(neqInterfaces[intfId],-1);
+      hmpi.RecvInt(intersections[intfId].data(),neqInterfaces[intfId], neighRank);
     }
 
-    i_intfc.m_interfaceDOFs.resize(neqInterface);
-    for (int dof = 0; dof < neqInterface; dof ++)
-      i_intfc.m_interfaceDOFs[dof] =  m_g2l[intersection[dof]];
+    i_intfc.m_interfaceDOFs.resize(neqInterfaces[intfId]);
+    for (int dof = 0; dof < neqInterfaces[intfId]; dof ++)
+      i_intfc.m_interfaceDOFs[dof] =  m_g2l[intersections[intfId][dof]];
 //
 //
 //
