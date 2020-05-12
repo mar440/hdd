@@ -10,12 +10,18 @@ class Hmpi
     Hmpi(MPI_Comm *_comm);
     ~Hmpi(){}
 
+
+
+    MPI_Comm GetComm(){return m_comm;}
     void SendInt(void* buf,int count, int dest);
     void RecvInt(void* buf,int count, int dest);
+
+    void IsendInt(void* buf,int count, int dest);
+    void IrecvInt(void* buf,int count, int dest);
+
+
     void SendDbl(void* buf,int count, int dest);
     void RecvDbl(void* buf,int count, int dest);
-    void Sendrecv();
-    void Barrier();
 
     void IsendDbl(void* buf,int count, int dest);
     void IrecvDbl(void* buf,int count, int dest);
@@ -23,6 +29,9 @@ class Hmpi
     void WaitRecv();
     void WaitSend();
     void Wait();
+
+    void Sendrecv();
+    void Barrier();
 
     void ReduceInt(const void *sendbuf, void *recvbuf, int count,
                MPI_Op op, int root);

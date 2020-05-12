@@ -19,10 +19,20 @@ void Hmpi::SendInt(void* buf,int count, int dest)
   MPI_Send(buf, count, MPI_INT, dest, TAG_SEND_INT, m_comm );
 }
 
+void Hmpi::IsendInt(void* buf,int count, int dest)
+{
+  MPI_Isend(buf, count, MPI_INT, dest, TAG_SEND_INT, m_comm, &m_send_request);
+}
+
 void Hmpi::RecvInt(void* buf,int count, int dest)
 {
   MPI_Status recv_status;
   MPI_Recv(buf, count,MPI_INT, dest ,TAG_SEND_INT,m_comm,&recv_status);
+}
+
+void Hmpi::IrecvInt(void* buf,int count, int dest)
+{
+  MPI_Irecv(buf,count,MPI_INT, dest, TAG_SEND_INT, m_comm,&m_recv_request);
 }
 
 void Hmpi::SendDbl(void* buf,int count, int dest)
