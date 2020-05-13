@@ -299,14 +299,127 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
   std::chrono::duration<double> elapsed_seconds = endTime-startTime;
   std::cout << std::fixed << std::setprecision(2) << 
       "Search neighbours: " << elapsed_seconds.count() << " s\n";
-
   HDDTRACES
-
 }
 
 void Domain::SetInterfaces()
 {
 
+  HDDTRACES
+  // if "neighbours" ranks not known apriori
+  if ((int)m_neighboursRanks.size() == 0)
+    _SearchNeighbours(m_neighboursRanks);
+
+  HDDTRACES
+
+  int nInterf = (int)m_neighboursRanks.size();
+
+  m_interfaces.resize(nInterf);
+  for (int iR = 0; iR < nInterf; iR++)
+  {
+    m_interfaces[iR].SetNeighbRank(m_neighboursRanks[iR]);
+    m_intf_g2l[m_neighboursRanks[iR]] = iR;
+  }
+  HDDTRACES
+  {
+
+    MPI_Request requests[nInterf];
+    MPI_Status statuses[nInterf];
+    HDDTRACES
+    for (int intfId = 0 ; intfId < nInterf; intfId++ )
+    {
+
+      Interface& i_intfc = m_interfaces[intfId];
+      HDDTRACES
+
+      int neighRank = i_intfc.GetNeighbRank();
+
+      MPI_Isend(m_l2g.data(),m_l2g.size(),MPI_INT,neighRank,TAG0,
+              hmpi.GetComm(),&requests[intfId]);
+      HDDTRACES
+    }
+
+    HDDTRACES
+    int msg_avail = -1;
+    MPI_Status status1, status2;
+    int neq_neighb(0);
+    int cntRecvMsg(0);
+
+    while(true)
+    {
+
+      MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, hmpi.GetComm(),&msg_avail, &status1);
+
+      HDDTRACES
+      if (msg_avail!=0)
+      {
+        HDDTRACES
+        MPI_Get_count(&status1, MPI_INT,&neq_neighb);
+        int neighRank = status1.MPI_SOURCE;
+
+        std::vector<int>  neighb_l2g(neq_neighb,-1);
+        MPI_Recv(neighb_l2g.data(),neq_neighb,MPI_INT, neighRank,TAG0,
+            hmpi.GetComm(), &status2);
+
+        std::vector<int> intersection = 
+          tools::intersection(m_l2g, neighb_l2g);
+
+        int neqIntf = intersection.size();
+
+        int intfId = m_intf_g2l[neighRank];
+
+        Interface& i_intfc = m_interfaces[intfId];
+        i_intfc.SetNeighbNumbOfEqv(neq_neighb);
+
+        i_intfc.m_interfaceDOFs.resize(neqIntf);
+        for (int dof = 0; dof < neqIntf; dof ++)
+          i_intfc.m_interfaceDOFs[dof] =  m_g2l[intersection[dof]];
+
+        std::cout << "neighRank:" << neighRank << ", neq: " <<  neq_neighb <<std::endl;
+
+        HDDTRACES
+        if (++cntRecvMsg == nInterf) break;
+        HDDTRACES
+      }
+    }
+    MPI_Wait(requests,statuses);
+  }
+
+  HDDTRACES
+
+  // set weight and get dual number of dofs
+  m_neqDual = 0;
+  m_multiplicity.resize(m_neqPrimal,1);
+
+  for (auto& i_intfc : m_interfaces)
+  {
+    for(auto& ddof : i_intfc.m_interfaceDOFs)
+      m_multiplicity[ddof]++;
+
+    m_neqDual += i_intfc.m_interfaceDOFs.size();
+
+  }
+
+  for (auto& im :  m_multiplicity) im = sqrt(im);
+
+
+  // set offset
+//  for (auto& intf : m_interfaces)
+  
+
+#if DBG > 3
+  for (auto& im :  m_multiplicity)
+    std::cout << im << ' ';
+  std::cout << std::endl;
+
+#endif
+
+}
+
+void Domain::_SetInterfaces()
+{
+
+  // LEGACY ...
 
   // SET m_interfaces done in 3 steps
   //    1 - number of DOFs exchanging between neigbhours
@@ -326,7 +439,12 @@ void Domain::SetInterfaces()
 
   m_interfaces.resize(nInterf);
   for (int iR = 0; iR < nInterf; iR++)
+  {
     m_interfaces[iR].SetNeighbRank(m_neighboursRanks[iR]);
+    m_intf_g2l[m_neighboursRanks[iR]] = iR;
+  }
+
+    
 
   HDDTRACES
   
@@ -343,27 +461,52 @@ void Domain::SetInterfaces()
 
       int neighRank = i_intfc.GetNeighbRank();
 
-      MPI_Request newRequest0;
-      MPI_Isend(&m_neqPrimal,1,MPI_INT,neighRank,TAG0,
-          hmpi.GetComm(), &newRequest0);
-      requests.push_back(newRequest0);
+      MPI_Send(&m_neqPrimal,1,MPI_INT,neighRank,TAG0,
+          hmpi.GetComm());
 
-      MPI_Request newRequest1;
-      MPI_Irecv(&neq_neighbs[intfId],1,MPI_INT,neighRank,TAG0,
-          hmpi.GetComm(), &newRequest1);
-      requests.push_back(newRequest1);
 
     }
+//    for (int intfId = 0 ; intfId < nInterf; intfId++ )
 
-    std::vector<MPI_Status> status(requests.size());
-    MPI_Waitall((int)requests.size(),requests.data(),status.data());
+    int flag = -1;
+    MPI_Request request;
+    MPI_Status status;
+    int neq_neighb(0);
 
+    int cntRecvMsg(0);
 
-    for (int intfId = 0 ; intfId < nInterf; intfId++ )
+    while(true)
     {
-      Interface& i_intfc = m_interfaces[intfId];
-      i_intfc.SetNeighbNumbOfEqv(neq_neighbs[intfId]);
+      if (flag!=0)
+      {
+        MPI_Irecv(&neq_neighb,1,MPI_INT,MPI_ANY_SOURCE,MPI_ANY_TAG,
+            hmpi.GetComm(), &request);
+        flag = 0;
+      }
+      MPI_Test(&request,&flag,&status);
+      if (flag!=0)
+      {
+        int neighRank = status.MPI_SOURCE;
+        int intfId = m_intf_g2l[neighRank];
+        neq_neighbs[intfId] = neq_neighb;
+        Interface& i_intfc = m_interfaces[intfId];
+        i_intfc.SetNeighbNumbOfEqv(neq_neighbs[intfId]);
+
+        std::cout << "neighRank:" << neighRank << ", neq: " <<  neq_neighb <<std::endl;
+
+        if (++cntRecvMsg == nInterf) break;
+      }
+
     }
+
+
+    hmpi.Barrier();
+
+//    for (int intfId = 0 ; intfId < nInterf; intfId++ )
+//    {
+//      Interface& i_intfc = m_interfaces[intfId];
+//      i_intfc.SetNeighbNumbOfEqv(neq_neighbs[intfId]);
+//    }
   }
 
 
@@ -392,18 +535,12 @@ void Domain::SetInterfaces()
 
       if (m_mpirank > neighRank)
       {
-//        std::vector<int> neighb_l2g(neq_neighb,0);
-        // higher rank manages intersection
-//        hmpi.RecvInt(neighb_l2g.data(),neq_neighb , neighRank);
-//        intersections[intfId] = tools::intersection(m_l2g, neighb_l2g);
         neighbs_l2g[intfId].resize(neq_neighb);
         MPI_Irecv(neighbs_l2g[intfId].data(),neq_neighb,MPI_INT, neighRank,TAG0,
             hmpi.GetComm(),&newRequest);
       }
       else
       {
-        // send my l2g to neighbour with < rank
-//        hmpi.SendInt(m_l2g.data(),m_l2g.size(), neighRank);
         MPI_Isend(m_l2g.data(),m_l2g.size(),MPI_INT,neighRank,TAG0,
             hmpi.GetComm(), &newRequest);
       }
@@ -421,7 +558,7 @@ void Domain::SetInterfaces()
       if (m_mpirank > neighRank)
       {
         intersections[intfId] = tools::intersection(m_l2g, neighbs_l2g[intfId]);
-        neighbs_l2g[intfId].clear();
+        neighbs_l2g[intfId].resize(0);
         neighbs_l2g[intfId].shrink_to_fit();
       }
     }
@@ -446,13 +583,11 @@ void Domain::SetInterfaces()
       if (m_mpirank > neighRank)
       {
         neqInterfaces[intfId] = intersections[intfId].size();
-//      hmpi.SendInt(&(neqInterfaces[intfId]),1, neighRank);
         MPI_Isend(&(neqInterfaces[intfId]),1,MPI_INT,neighRank,TAG0,
             hmpi.GetComm(), &newRequest);
       }
       else
       {
-  //      hmpi.RecvInt(&(neqInterfaces[intfId]),1, neighRank);
         MPI_Irecv(&(neqInterfaces[intfId]),1,MPI_INT, neighRank,TAG0,
             hmpi.GetComm(),&newRequest);
       }
@@ -462,12 +597,10 @@ void Domain::SetInterfaces()
     std::vector<MPI_Status> status(requests.size());
     MPI_Waitall((int)requests.size(),requests.data(),status.data());
   }
-  //hmpi.Barrier();
 
   //##################################
   // 3 send intersection DOFs to lower rank 
   {
-
 
     std::vector<MPI_Request> requests(0);
 
@@ -484,14 +617,12 @@ void Domain::SetInterfaces()
 
       if (m_mpirank > neighRank)
       {
-        //hmpi.SendInt(intersections[intfId].data(),neqInterfaces[intfId], neighRank);
         MPI_Isend(intersections[intfId].data(),neqInterfaces[intfId],MPI_INT,
             neighRank,TAG0, hmpi.GetComm(), &newRequest);
       }
       else
       {
         intersections[intfId].resize(neqInterfaces[intfId],-1);
-        //hmpi.RecvInt(intersections[intfId].data(),neqInterfaces[intfId], neighRank);
         MPI_Irecv(intersections[intfId].data(),neqInterfaces[intfId],MPI_INT, 
             neighRank,TAG0, hmpi.GetComm(),&newRequest);
       }
@@ -510,6 +641,10 @@ void Domain::SetInterfaces()
       i_intfc.m_interfaceDOFs.resize(neqInterfaces[intfId]);
       for (int dof = 0; dof < neqInterfaces[intfId]; dof ++)
         i_intfc.m_interfaceDOFs[dof] =  m_g2l[intersections[intfId][dof]];
+
+      intersections[intfId].resize(0);
+      intersections[intfId].shrink_to_fit();
+
     }
 
   }
@@ -539,7 +674,6 @@ void Domain::SetInterfaces()
 #endif
 
 }
-
 void Domain::_SetDirichletPrecondDOFs()
 {
   std::vector<bool> isDualDOF(m_neqPrimal,false);

@@ -23,6 +23,7 @@ class Domain
     void SetMappingLoc2Glb(std::vector<int>&);
 
     void SetInterfaces();
+    void _SetInterfaces();
     const std::vector<Interface>& GetInterfaces() {return m_interfaces;};
     Hmpi hmpi;
     int GetRank(){return m_mpirank;}
@@ -66,6 +67,8 @@ class Domain
 
     // for interface operator
     std::vector<Interface> m_interfaces;
+    std::map<int,int> m_intf_g2l;
+
     std::vector<double> m_multiplicity;
 
     void _SetDirichletPrecondDOFs();
