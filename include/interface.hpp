@@ -1,9 +1,13 @@
 #pragma once
 #include <vector>
 
+class Domain;
+class InterfaceOperatorB;
 
 class Interface
 {
+  friend Domain;
+  friend InterfaceOperatorB;
   public:
     Interface();
     ~Interface(){}
@@ -16,10 +20,12 @@ class Interface
 
     int Get_neqInterface(){return m_neqInterface;}
 
+  protected:
     std::vector<int> m_interfaceDOFs;
 
   private:
     int m_neighb_rank;
     int m_neq_neighb;
     int m_neqInterface;
+    int m_offset;
 };
