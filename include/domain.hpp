@@ -12,6 +12,9 @@
 class StiffnessMatrix;
 
 
+
+
+
 class Domain 
 {
 
@@ -38,6 +41,7 @@ class Domain
     std::vector<double>* GetMultiplicity(){return &m_multiplicity;}
     void HandlePreconditioning();
 
+    const std::map<int,int> GetInterfacesMapping_g2l() const {return m_intf_g2l;}
 
   private:
 

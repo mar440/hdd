@@ -404,8 +404,13 @@ void Domain::SetInterfaces()
 
 
   // set offset
-//  for (auto& intf : m_interfaces)
-  
+  int offset(0);
+  for (int intfId = 0; intfId < nInterf; intfId++)
+  {
+    m_interfaces[intfId].m_offset = offset;
+    offset += m_interfaces[intfId].m_interfaceDOFs.size();
+  }
+
 
 #if DBG > 3
   for (auto& im :  m_multiplicity)
