@@ -35,6 +35,11 @@ class InterfaceOperatorB
 
     Domain* m_p_domain;
     int m_root;
+
+
+    void m_releaseBuffers();
+    std::vector<Eigen::MatrixXd> m_sendBuffers;
+
     Eigen::MatrixXd m_dbufToSend;
     Eigen::MatrixXd m_dbufToRecv;
 

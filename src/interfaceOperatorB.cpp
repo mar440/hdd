@@ -11,6 +11,8 @@
 
 
 #define GTG_ALL_NODES
+#define TAG0 401
+#define TAG1 402
 
 InterfaceOperatorB::InterfaceOperatorB(Domain* p_dom)
 {
@@ -43,7 +45,7 @@ void InterfaceOperatorB::multBt(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 
   auto interfaces = m_p_domain->GetInterfaces();
 
-  int offset = 0;
+//  int offset = 0;
 
   for (auto& iItf : interfaces)
   {
@@ -57,11 +59,9 @@ void InterfaceOperatorB::multBt(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 
     int nDOFs = (int) iItf.m_interfaceDOFs.size();
     for (int row = 0; row < nDOFs;row++)
-      out.row(iItf.m_interfaceDOFs[row]) += scale * in.row(offset + row);
-    offset += nDOFs;
+      out.row(iItf.m_interfaceDOFs[row]) += scale * in.row(iItf.m_offset + row);
   }
 }
-
 
 void InterfaceOperatorB::multB(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
@@ -73,10 +73,16 @@ void InterfaceOperatorB::multB(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 
   auto interfaces = m_p_domain->GetInterfaces();
 
-  int offset = 0;
 
-  for (auto& iItf : interfaces)
+  int nInterf = (int)interfaces.size();
+  MPI_Request requests[nInterf];
+  MPI_Status statuses[nInterf];
+
+
+  m_sendBuffers.resize(nInterf,Eigen::MatrixXd::Zero(0,0));
+  for (int intfId = 0; intfId < nInterf; intfId++)
   {
+    Interface& iItf = interfaces[intfId];
     ////////////////////////////////////////////////////
     // CONVENTION: subdomain with higher rank has
     // operator B (or G) with negative coefficients (-1)
@@ -87,25 +93,64 @@ void InterfaceOperatorB::multB(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 
     int nDOFs = (int) iItf.m_interfaceDOFs.size();
 
-    m_dbufToRecv.resize(nDOFs , nRHS);
-    m_dbufToSend.resize(nDOFs , nRHS);
+    m_sendBuffers[intfId].resize(nDOFs , nRHS);
 
     for (int row = 0; row < nDOFs; row++)
     {
-      out.row(row + offset) = scale * in.row(iItf.m_interfaceDOFs[row]);
-      m_dbufToSend.row(row) = scale * in.row(iItf.m_interfaceDOFs[row]);
+      out.row(row + iItf.m_offset) += scale * in.row(iItf.m_interfaceDOFs[row]);
+      m_sendBuffers[intfId].row(row) = scale * in.row(iItf.m_interfaceDOFs[row]);
     }
-
-    m_p_domain->hmpi.IsendDbl(m_dbufToSend.data(),nDOFs * nRHS, iItf.GetNeighbRank());
-    m_p_domain->hmpi.IrecvDbl(m_dbufToRecv.data(),nDOFs * nRHS, iItf.GetNeighbRank());
-    m_p_domain->hmpi.Wait();
-
-    for (int row = 0; row < nDOFs; row++)
-      out.row(row + offset) += m_dbufToRecv.row(row);
-
-    offset += nDOFs;
+    MPI_Isend(m_sendBuffers[intfId].data(),nDOFs * nRHS, MPI_DOUBLE, iItf.GetNeighbRank(), TAG0,
+      m_p_domain->hmpi.GetComm(), &requests[intfId]);
   }
+
+  HDDTRACES
+  int msg_avail = -1;
+  MPI_Status status1, status2;
+  int bufersize(0);
+  int cntRecvMsg(0);
+
+  while(true)
+  {
+
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, m_p_domain->hmpi.GetComm(),&msg_avail, &status1);
+
+    HDDTRACES
+    if (msg_avail!=0)
+    {
+      HDDTRACES
+      MPI_Get_count(&status1, MPI_DOUBLE, &bufersize);
+
+      int neighRank = status1.MPI_SOURCE;
+
+      auto intf_g2l = m_p_domain->GetInterfacesMapping_g2l();
+      int intfId = intf_g2l[neighRank];
+
+      Interface& iItf = interfaces[intfId];
+
+      int nDOFs = (int) iItf.m_interfaceDOFs.size();
+      m_dbufToRecv.resize(nDOFs , nRHS);
+
+//      std::cout << "same numbers: " << bufersize << " " << nDOFs * nRHS << '\n';
+
+      MPI_Recv(m_dbufToRecv.data(),nDOFs * nRHS, MPI_DOUBLE,  iItf.GetNeighbRank(),TAG0,
+        m_p_domain->hmpi.GetComm(), &status2);
+
+
+      for (int row = 0; row < nDOFs; row++)
+        out.row(row + iItf.m_offset) += m_dbufToRecv.row(row);
+
+      if (++cntRecvMsg == nInterf) break;
+    }
+  }
+  MPI_Wait(requests,statuses);
+  m_p_domain->hmpi.Barrier();
+
+  m_releaseBuffers();
+
+
 }
+
 
 void InterfaceOperatorB::_solve(const Eigen::MatrixXd& in, Eigen::MatrixXd& out)
 {
@@ -185,9 +230,14 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
   HDDTRACES
   int nRHS_myRank = myDefect;
 
+  int nInterf = (int)interfaces.size();
+
+  MPI_Request requests[nInterf];
+  MPI_Status statuses[nInterf];
+
   HDDTRACES
   // each rank computes whole block row 
-  for (int cntI = 0; cntI < (int)interfaces.size(); cntI++)
+  for (int cntI = 0; cntI < nInterf; cntI++)
   {
 
     Interface &iItf = interfaces[cntI];
@@ -212,9 +262,59 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     for (int row = 0; row < neqIntf; row++)
       BR_myRank[cntI].row(row) = (-1) * scale * (*kerK).row(iItf.m_interfaceDOFs[row]);
 
-    m_p_domain->hmpi.IsendDbl(BR_myRank[cntI].data(),neqIntf * nRHS_myRank, iItf.GetNeighbRank());
-    m_p_domain->hmpi.IrecvDbl(BR_neighb[cntI].data(),neqIntf * nRHS_neighb, iItf.GetNeighbRank());
-    m_p_domain->hmpi.Wait();
+// m_p_domain->hmpi.IsendDbl(BR_myRank[cntI].data(),neqIntf * nRHS_myRank, iItf.GetNeighbRank());
+    MPI_Isend(BR_myRank[cntI].data(),neqIntf*nRHS_myRank, MPI_DOUBLE, iItf.GetNeighbRank(),TAG0,
+      m_p_domain->hmpi.GetComm(), requests);
+  }
+
+  int msg_avail = -1;
+  MPI_Status status1, status2;
+  int bufersize(0);
+  int cntRecvMsg(0);
+
+  while(true)
+  {
+
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, m_p_domain->hmpi.GetComm(),&msg_avail, &status1);
+
+    HDDTRACES
+    if (msg_avail!=0)
+    {
+      HDDTRACES
+      MPI_Get_count(&status1, MPI_DOUBLE, &bufersize);
+
+      int neighRank = status1.MPI_SOURCE;
+
+      auto intf_g2l = m_p_domain->GetInterfacesMapping_g2l();
+      int intfId = intf_g2l[neighRank];
+
+      Interface& iItf = interfaces[intfId];
+      int nRHS_neighb = (*m_p_defectPerSubdomains)[iItf.GetNeighbRank()];
+
+      int nDOFs = (int) iItf.m_interfaceDOFs.size();
+      m_dbufToRecv.resize(nDOFs , nRHS_neighb);
+
+      MPI_Recv(BR_neighb[intfId].data(),nDOFs*nRHS_neighb, MPI_DOUBLE,iItf.GetNeighbRank(),TAG0,
+        m_p_domain->hmpi.GetComm(), &status2);
+
+      if (++cntRecvMsg == nInterf) break;
+    }
+  }
+
+
+  MPI_Wait(requests,statuses);
+  m_p_domain->hmpi.Barrier();
+
+  for (int cntI = 0; cntI < (int)interfaces.size(); cntI++)
+  {
+
+//    Interface &iItf = interfaces[cntI];
+//
+//    int neqIntf = (int) iItf.m_interfaceDOFs.size();
+//
+//    int nRHS_neighb = (*m_p_defectPerSubdomains)[iItf.GetNeighbRank()];
+//
+//    m_p_domain->hmpi.IrecvDbl(BR_neighb[cntI].data(),neqIntf * nRHS_neighb, iItf.GetNeighbRank());
 
 #if DBG > 4
     std::cout<< "BR_myRank - myRank: " << m_p_domain->GetRank() << std::endl;
@@ -223,6 +323,17 @@ void InterfaceOperatorB::_FetiCoarseSpaceAssembling()
     std::cout<< "BR_neighb - neighb: " << iItf.GetNeighbRank() << std::endl;
     std::cout<< BR_neighb[cntI]   << std::endl;
 #endif
+
+  }
+
+
+
+
+
+//  m_p_domain->hmpi.Wait();
+
+  for (int cntI = 0; cntI < (int)interfaces.size(); cntI++)
+  {
     // diagonal GtG(i = myRank, j = myRank)
     
     if (BR_myRank[cntI].size() > 0 && BR_myRank[cntI].size() > 0)
@@ -901,4 +1012,11 @@ void InterfaceOperatorB::printNeighboursRanks(std::string name)
 
 }
 
+
+
+
+void InterfaceOperatorB::m_releaseBuffers()
+{
+  for(auto& ii : m_sendBuffers) ii.resize(0,0);
+}
 
