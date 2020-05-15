@@ -7,7 +7,6 @@
 #include "types.hpp"
 #include "domain.hpp"
 #include "interfaceOperatorB.hpp"
-#include "interfaceOperatorG.hpp"
 #include "solver.hpp"
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
@@ -45,11 +44,10 @@ class Data{
 
 
   private:
-    MPI_Comm m_comm;
     int m_mpiRank;
     int m_mpiSize;
 
-    std::vector<int> m_defectPerSubdomains;
+    std::vector<int> m_defectPerSubdomainsOnRoot;
     std::vector<int> m_container;
     std::vector<int> m_DirichletGlbDofs;
     Domain m_domain;
@@ -57,8 +55,8 @@ class Data{
 
     int m_cnt_setLocalMatrix;
 
-    void m_SetKernelNumbering();
-    std::vector<int>& _GetDefectPerSubdomains(){return m_defectPerSubdomains;}
+    void m_SetKernelNumberingOnRoot();
+    std::vector<int>& m_GetDefectPerSubdomainsOnRoot(){return m_defectPerSubdomainsOnRoot;}
     Solver m_solver;
 
 
@@ -93,7 +91,6 @@ class Data{
     void _dumpTxtFiles(Eigen::Ref<Eigen::MatrixXd>);
     boost::property_tree::ptree m_root;
     int m_verboseLevel;
-
 
 
 
