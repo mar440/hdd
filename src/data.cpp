@@ -1,6 +1,7 @@
 #include "../include/data.hpp"
 #include "../include/linearAlgebra.hpp"
 #include "../include/stiffnessMatrix.hpp"
+#include "../include/hddTime.hpp"
 #include <string>
 
 
@@ -13,13 +14,13 @@ namespace pt = boost::property_tree;
 
 Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
 {
-  m_comm = *_pcomm;
-  m_p_interfaceOperatorB = nullptr;
 
-  MPI_Comm_rank(m_comm, &m_mpiRank);
+
+  m_p_interfaceOperatorB = nullptr;
+  m_mpiRank = m_domain.hmpi.GetRank();
 
   m_container.resize(0);
-  m_defectPerSubdomains.resize(0);
+  m_defectPerSubdomainsOnRoot.resize(0);
   m_DirichletGlbDofs.resize(0);
 
   std::string fname = "out_" + std::to_string(m_mpiRank) + ".txt";
@@ -29,9 +30,17 @@ Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
 
   m_p_sbuf = m_filestr.rdbuf();   // get file's streambuf
   std::cout.rdbuf(m_p_sbuf);
+
+//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////
+
+
   std::cout << "++++++++++++++++++++++++\n";
   std::cout << "SUBDOMAIN id. " << m_mpiRank << "\n";
   std::cout << "++++++++++++++++++++++++\n\n";
+
+  HddTime timeData("Data initialization");
 
   m_fnameDmpGlbDOFs =
     "dmpGlbDOFs_" + std::to_string(m_mpiRank) + ".txt";
@@ -67,6 +76,7 @@ void Data::SymbolicAssembling(int vals[],int size)
 
 void Data::Finalize()
 {
+
   std::cout.rdbuf(m_p_backup);        // restore cout's original streambuf
   m_filestr.close();
 }
@@ -74,6 +84,7 @@ void Data::Finalize()
 int Data::FinalizeSymbolicAssembling()
 {
 
+  HddTime timeSA("Finalizing symbolic assembling");
   HDDTRACES
 #if defined(DMP_INPUTS)
   if (m_ofstrDumpInputsGlbDOFs.is_open())
@@ -99,26 +110,28 @@ int Data::FinalizeSymbolicAssembling()
   //
   HDDTRACES
   //
-
-
-  std::string precondType =
-    m_root.get<std::string>("solver.preconditioner");
-
-  PRECONDITIONER_TYPE _precondType;
-
-  if (precondType == "Dirichlet")
-    _precondType = DIRICHLET;
-  else if (precondType == "Lumped")
-    _precondType = LUMPED;
-  else if (precondType == "none")
-    _precondType = NONE;
-  else
   {
-    _precondType = NONE;
-    std::runtime_error("Unknown preconditioner type");
-  }
+    std::string precondType =
+      m_root.get<std::string>("solver.preconditioner");
 
-  m_domain.InitStiffnessMatrix(_precondType);
+    PRECONDITIONER_TYPE _precondType;
+
+    if (precondType == "Dirichlet")
+      _precondType = DIRICHLET;
+    else if (precondType == "Lumped")
+      _precondType = LUMPED;
+    else if (precondType == "none")
+      _precondType = NONE;
+    else
+    {
+      _precondType = NONE;
+      std::runtime_error("Unknown preconditioner type");
+    }
+
+    HddTime timeStima("Linear operator");
+    m_domain.InitStiffnessMatrix(_precondType);
+    timeStima.CloseTime();
+  }
 
 
   int dumpMatrices = m_root.get<int>("outputs.dumpMatrices",0);
@@ -165,6 +178,9 @@ void Data::NumericAssembling(int glbIds[],
 void Data::FinalizeNumericAssembling()
 {
 
+  HddTime timeFinalizeNumAssembl("Finalizing numerical assembling");
+
+
 #if defined(DMP_INPUTS)
   if (m_ofstrDumpInputsLinOperator.is_open())
     m_ofstrDumpInputsLinOperator.close();
@@ -178,12 +194,25 @@ void Data::FinalizeNumericAssembling()
     std::runtime_error("Dirichlet BC must be provided \
         before \"FinalizeNumericAssembling\" is called");
 
-  m_domain.SetDirichletDOFs(m_DirichletGlbDofs);
+  {
+    HddTime timeDirBC("Dirichlet BC");
+    m_domain.SetDirichletDOFs(m_DirichletGlbDofs);
+  }
 
 
   // ASSEMBLE & FACTORIZE LINEAR OPERATOR
-  m_domain.GetStiffnessMatrix()->FinalizeNumericPart(m_domain.GetDirichletDOFs());
+  {
+    HddTime timeStima("StiffnessMatrix in Data");
+    m_domain.GetStiffnessMatrix()->FinalizeNumericPart(
+        m_domain.GetDirichletDOFs());
+  }
 
+  {
+    HddTime timeStima("ExchangeNeighbDefects in Data");
+    m_domain.ExchangeNeighbDefects();
+  }
+
+  HDDTRACES
   int dumpMatrices = m_root.get<int>("outputs.dumpMatrices",0);
   if (dumpMatrices!=0){
     m_domain.GetStiffnessMatrix()->PrintStiffnessMatrix("K_");
@@ -192,15 +221,26 @@ void Data::FinalizeNumericAssembling()
     m_domain.GetStiffnessMatrix()->PrintNullPivots("nullPivots_");
   }
 
+  HDDTRACES
   // DIRICHLET PRECONDITIONER
-  m_domain.HandlePreconditioning();
+  {
+    HddTime timePrecond("Preconditioner in data");
+    m_domain.HandlePreconditioning();
+  }
 
+  HDDTRACES
   // NUMEBRING FOR GtG MATRIX
-  m_SetKernelNumbering();
+  {
+    HddTime timeKer("Kernel numbering in data");
+    m_SetKernelNumberingOnRoot();
+  }
 
   // FETI COARSE SPACE 
   auto mpB = m_p_interfaceOperatorB;
-  mpB->FetiCoarseSpace(_GetDefectPerSubdomains());
+  {
+    HddTime timeKer("Coarse Space in data");
+    mpB->FetiCoarseSpace(m_GetDefectPerSubdomainsOnRoot());
+  }
 
 }
 
@@ -230,37 +270,46 @@ void Data::SetDirichletDOFs(std::vector<int>&v)
 
 
 
-void Data::m_SetKernelNumbering()
+void Data::m_SetKernelNumberingOnRoot()
 {
 
 
-  int mpisize = m_domain.GetMpiSize();
-
   int myDefect = m_domain.GetStiffnessMatrix()->GetDefect();
-  m_defectPerSubdomains.resize(mpisize,myDefect);
+  int mpisize = m_domain.hmpi.GetSize();
+  int myRank = m_domain.hmpi.GetRank();
+
+  int root = 0;
 
 
-  if (m_verboseLevel>2) 
-  {
-    std::cout << " m_defectPerSubdomains before AlltoallInt..." << std::endl;
-    for (auto& iw : m_defectPerSubdomains) std::cout<< iw << ' ';
-    std::cout << '\n';
-  }
-
-  m_domain.hmpi.AlltoallInt(m_defectPerSubdomains.data(),mpisize,mpisize);
-
-  if (m_verboseLevel>2) 
-  {
-    std::cout << "mpisize:  " << mpisize  << std::endl;
-    std::cout << "myDefect: " << myDefect << std::endl;
-    std::cout << " m_defectPerSubdomains ..." << std::endl;
-    for (auto& iw : m_defectPerSubdomains) std::cout<< iw << ' ';
-    std::cout << '\n';
-  }
-
-  m_container.resize(0);
-  m_container.shrink_to_fit();
   HDDTRACES 
+  if (myRank == root) m_defectPerSubdomainsOnRoot.resize(mpisize,-1);
+
+
+  m_domain.hmpi.GatherInt(&myDefect, 1,
+        m_defectPerSubdomainsOnRoot.data(), 1,root);
+  HDDTRACES 
+
+//  hmpi.GatherInt(&numberOfDofOnIntf, 1,
+//               numberOfDofOnIntfZ0.data(), 1 , root);
+//
+//  m_p_domain->hmpi.GatherInt(&nInterf, 1,
+//               numberOfNeighboursRoot.data(), 1 ,m_root);
+
+
+  if (myRank == root)
+  {
+
+    if (m_verboseLevel>2) 
+    {
+      std::cout << "mpisize:  " << mpisize  << std::endl;
+      std::cout << "myDefect: " << myDefect << std::endl;
+      std::cout << " m_defectPerSubdomains ..." << std::endl;
+      for (auto& iw : m_defectPerSubdomainsOnRoot) std::cout<< iw << ' ';
+      std::cout << '\n';
+    }
+  }
+
+    HDDTRACES 
 }
 
 
