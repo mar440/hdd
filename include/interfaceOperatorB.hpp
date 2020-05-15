@@ -1,10 +1,10 @@
 #pragma once
 #include <vector>
 #include <Eigen/Dense>
-#include "types.hpp"
 #include <Eigen/Sparse>
 #include <Eigen/PardisoSupport>
 
+#include "types.hpp"
 
 class Domain;
 
@@ -45,8 +45,7 @@ class InterfaceOperatorB
 
     // orig G
     void _FetiCoarseSpaceAssembling();
-    std::vector<int>* m_p_defectPerSubdomains;
-
+    std::vector<int>* m_p_defectPerSubdomainsOnRoot;
 
     std::vector<int> m_listOfNeighbours;
     std::vector<int> m_listOfNeighboursColumPtr;
