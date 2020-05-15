@@ -43,6 +43,8 @@ class Domain
 
     const std::map<int,int> GetInterfacesMapping_g2l() const {return m_intf_g2l;}
 
+    void ExchangeNeighbDefects();
+
   private:
 
     void m_Init();
@@ -86,4 +88,6 @@ class Domain
 
     std::vector<int> m_listOfNeighbours;
     std::vector<int> m_listOfNeighboursColumPtr;
+
 };
+
