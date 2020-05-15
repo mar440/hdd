@@ -18,7 +18,11 @@ class Interface
     int GetNeighbNumbOfEqv(){return m_neq_neighb;}
     void SetNeighbNumbOfEqv(int _neq){m_neq_neighb = _neq;}
 
-    int Get_neqInterface(){return m_neqInterface;}
+    int GetNeighbDefect(){return m_neighb_defect;}
+    void SetNeighbDefect(int _defect){m_neighb_defect= _defect;}
+
+
+    int Get_neqInterface(){return m_neqOnInterface;}
 
   protected:
     std::vector<int> m_interfaceDOFs;
@@ -26,6 +30,7 @@ class Interface
   private:
     int m_neighb_rank;
     int m_neq_neighb;
-    int m_neqInterface;
+    int m_neqOnInterface;
+    int m_neighb_defect;
     int m_offset;
 };
