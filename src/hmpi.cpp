@@ -1,8 +1,10 @@
 #include "../include/hmpi.hpp"
+#include "../include/types.hpp"
+#include "../include/hddTime.hpp"
+
 #include <iostream>
 #include <stdexcept>
 #include <vector>
-#include "../include/types.hpp"
 
 #define TAG_SEND_INT 1000
 #define TAG_SEND_DBL 2000
@@ -12,6 +14,20 @@
 Hmpi::Hmpi(MPI_Comm* _pcomm)
 {
   m_comm = *_pcomm;
+}
+
+int Hmpi::GetRank()
+{
+  int _rank;
+  MPI_Comm_rank(m_comm,&_rank);
+  return _rank;
+}
+
+int Hmpi::GetSize()
+{
+  int _size;
+  MPI_Comm_size(m_comm,&_size);
+  return _size;
 }
 
 void Hmpi::SendInt(void* buf,int count, int dest)
@@ -166,8 +182,9 @@ void Hmpi::Barrier()
 void Hmpi::AlltoallInt(int* in_out_buffer, int in_buffer_size, int count)
 {
 
-  std::vector<int> send_buffer(in_out_buffer,  in_out_buffer + count);
-  MPI_Alltoall(send_buffer.data(),1,MPI_INT,in_out_buffer,1,MPI_INT,
+  std::vector<int> send_buffer(in_out_buffer,  in_out_buffer + in_buffer_size);
+
+  MPI_Alltoall(send_buffer.data(),count,MPI_INT,in_out_buffer,count,MPI_INT,
       m_comm);
 
 }

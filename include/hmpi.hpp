@@ -3,6 +3,8 @@
 #include <mpi.h>
 #include <vector>
 
+
+
 class Hmpi 
 {
 
@@ -10,6 +12,8 @@ class Hmpi
     Hmpi(MPI_Comm *_comm);
     ~Hmpi(){}
 
+    int GetRank();
+    int GetSize();
 
 
     MPI_Comm GetComm(){return m_comm;}
@@ -75,5 +79,7 @@ class Hmpi
     MPI_Status m_send_status;
     MPI_Request m_send_request;
     MPI_Request m_recv_request;
+
+
 
 };
