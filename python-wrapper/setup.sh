@@ -19,5 +19,4 @@ else
   # launch mpi
   echo "mpisize: $1"
   mpirun -n $1 python FEM_launch.py
-#  cd ${orig_path}
 fi
