@@ -1,6 +1,7 @@
 #include "../include/domain.hpp"
 #include "../include/linearAlgebra.hpp"
 #include "../include/stiffnessMatrix.hpp"
+#include "../include/hddTime.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -8,7 +9,6 @@
 #include <set>
 #include <map>
 
-#include <chrono>
 
 
 #define TAG0 100
@@ -111,7 +111,7 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
   // TODO make it parallel - independently on domain decomposition
   HDDTRACES
 
-  auto startTime = std::chrono::steady_clock::now();
+  HddTime timeSearchNghb("Search neighbours");
 
   HDDTRACES
   // get max DOF index in global numbering
@@ -295,10 +295,6 @@ void Domain::_SearchNeighbours(std::vector<int>& inout)
 
   inout = listOfInterfacesLocal;
 
-  auto endTime = std::chrono::steady_clock::now();
-  std::chrono::duration<double> elapsed_seconds = endTime-startTime;
-  std::cout << std::fixed << std::setprecision(2) << 
-      "Search neighbours: " << elapsed_seconds.count() << " s\n";
   HDDTRACES
 }
 
@@ -375,15 +371,16 @@ void Domain::SetInterfaces()
         for (int dof = 0; dof < neqIntf; dof ++)
           i_intfc.m_interfaceDOFs[dof] =  m_g2l[intersection[dof]];
 
-        std::cout << "neighRank:" << neighRank << ", neq: " <<  neq_neighb <<std::endl;
 
-        HDDTRACES
-        if (++cntRecvMsg == nInterf) break;
-        HDDTRACES
+        cntRecvMsg++;
       }
+      if (cntRecvMsg == nInterf) break;
     }
     MPI_Wait(requests,statuses);
   }
+
+  hmpi.Barrier();
+
 
   HDDTRACES
 
@@ -400,6 +397,7 @@ void Domain::SetInterfaces()
 
   }
 
+  HDDTRACES
   for (auto& im :  m_multiplicity) im = sqrt(im);
 
 
@@ -411,6 +409,7 @@ void Domain::SetInterfaces()
     offset += m_interfaces[intfId].m_interfaceDOFs.size();
   }
 
+  HDDTRACES
 
 #if DBG > 3
   for (auto& im :  m_multiplicity)
@@ -419,7 +418,75 @@ void Domain::SetInterfaces()
 
 #endif
 
+  HDDTRACES
+
+
 }
+
+void Domain::ExchangeNeighbDefects()
+{
+
+  HddTime time1("ExchangeNeighbDefects");
+
+  time1.Capture();
+  int nInterf = (int)m_neighboursRanks.size();
+  int myDefect = m_p_stiffnessMatrix->GetDefect();
+
+  time1.Capture();
+  MPI_Request requests[nInterf];
+  MPI_Status statuses[nInterf];
+  HDDTRACES
+  time1.Capture();
+
+  for (int intfId = 0 ; intfId < nInterf; intfId++ )
+  {
+    Interface& i_intfc = m_interfaces[intfId];
+    int neighRank = i_intfc.GetNeighbRank();
+    MPI_Isend(&myDefect,1,MPI_INT,neighRank,TAG1,
+            hmpi.GetComm(),&requests[intfId]);
+  }
+
+  time1.Capture();
+  HDDTRACES
+  int msg_avail = -1;
+  MPI_Status status1, status2;
+  int cntRecvMsg(0);
+
+  time1.Capture();
+  while(true)
+  {
+
+    MPI_Iprobe(MPI_ANY_SOURCE, MPI_ANY_TAG, hmpi.GetComm(),&msg_avail, &status1);
+
+    HDDTRACES
+    if (msg_avail!=0)
+    {
+      HDDTRACES
+      int neighRank = status1.MPI_SOURCE;
+
+      int neighbDefect(-1);
+      MPI_Recv(&neighbDefect,1,MPI_INT, neighRank,TAG1,
+          hmpi.GetComm(), &status2);
+
+
+      int intfId = m_intf_g2l[neighRank];
+
+      Interface& i_intfc = m_interfaces[intfId];
+      i_intfc.SetNeighbDefect(neighbDefect);
+
+
+      cntRecvMsg++;
+      HDDTRACES
+    }
+    if (cntRecvMsg == nInterf) break;
+  }
+
+  time1.Capture();
+  MPI_Wait(requests,statuses);
+  hmpi.Barrier();
+  HDDTRACES
+}
+
 
 void Domain::_SetInterfaces()
 {
@@ -497,10 +564,9 @@ void Domain::_SetInterfaces()
         Interface& i_intfc = m_interfaces[intfId];
         i_intfc.SetNeighbNumbOfEqv(neq_neighbs[intfId]);
 
-        std::cout << "neighRank:" << neighRank << ", neq: " <<  neq_neighb <<std::endl;
-
-        if (++cntRecvMsg == nInterf) break;
+        cntRecvMsg++;
       }
+      if (cntRecvMsg == nInterf) break;
 
     }
 
@@ -704,9 +770,9 @@ void Domain::_SetDirichletPrecondDOFs()
 
 void Domain::HandlePreconditioning()
 {
-    
+
   _SetDirichletPrecondDOFs();
- 
+
   m_p_stiffnessMatrix->SetDirichletPrecond(
         m_I_DirichletPrecondDOFs, 
         m_B_DirichletPrecondDOFs);
