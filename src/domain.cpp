@@ -426,17 +426,15 @@ void Domain::SetInterfaces()
 void Domain::ExchangeNeighbDefects()
 {
 
+
   HddTime time1("ExchangeNeighbDefects");
 
-  time1.Capture();
   int nInterf = (int)m_neighboursRanks.size();
   int myDefect = m_p_stiffnessMatrix->GetDefect();
 
-  time1.Capture();
   MPI_Request requests[nInterf];
   MPI_Status statuses[nInterf];
   HDDTRACES
-  time1.Capture();
 
   for (int intfId = 0 ; intfId < nInterf; intfId++ )
   {
@@ -446,7 +444,6 @@ void Domain::ExchangeNeighbDefects()
             hmpi.GetComm(),&requests[intfId]);
   }
 
-  time1.Capture();
   HDDTRACES
   int msg_avail = -1;
   MPI_Status status1, status2;
