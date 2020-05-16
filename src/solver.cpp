@@ -3,9 +3,9 @@
 #include "../include/data.hpp"
 #include "../include/domain.hpp"
 #include "../include/stiffnessMatrix.hpp"
+#include "../include/hddTime.hpp"
 
 #include <iostream>
-#include <chrono>
 
 
 
@@ -17,7 +17,7 @@ bool Solver::pcpg(Data& data, Eigen::Ref<Eigen::MatrixXd> solutionInOut)
 {
 
 
-  auto startTime = std::chrono::steady_clock::now();
+  HddTime solverTime("solver");
 
   auto solverOpts = data.GetChild("solver");
   int verboseLevel = data.GetChild("outputs").get<int>("verbose");
@@ -73,6 +73,8 @@ bool Solver::pcpg(Data& data, Eigen::Ref<Eigen::MatrixXd> solutionInOut)
 
   p_opB->multBt(lambda,Btw);
 
+  solverTime.Capture();
+
   if (verboseLevel > 3){
     Eigen::MatrixXd Gt_lambda0 = (-1) * R_kerK.transpose() * Btw;
     std::cout << "Gt_lambda0 = \n" << Gt_lambda0 << '\n'; 
@@ -103,6 +105,7 @@ bool Solver::pcpg(Data& data, Eigen::Ref<Eigen::MatrixXd> solutionInOut)
   norm_solution0 = sqrt(norm_solution0);
 
 
+  solverTime.Capture();
 
   double norm_solution(1);
 
@@ -150,6 +153,7 @@ bool Solver::pcpg(Data& data, Eigen::Ref<Eigen::MatrixXd> solutionInOut)
     std::cout << "\n===========================================================\n";
   }
 
+  solverTime.Capture();
 
   int iter(0);
   for (iter = 0; iter < max_iter; iter++)
@@ -240,6 +244,7 @@ bool Solver::pcpg(Data& data, Eigen::Ref<Eigen::MatrixXd> solutionInOut)
 
   }
 
+  solverTime.Capture();
 
   int niter =  iter + 1;
 
@@ -253,15 +258,7 @@ bool Solver::pcpg(Data& data, Eigen::Ref<Eigen::MatrixXd> solutionInOut)
   else
     std::runtime_error("input solution has incorrect dimensions");
 
-
-
-
-    auto endTime = std::chrono::steady_clock::now();
-    std::chrono::duration<double> elapsed_seconds = endTime-startTime;
-    std::cout << std::fixed << std::setprecision(2) << 
-      "Solver time: " << elapsed_seconds.count() << " s\n";
-
-
+  solverTime.Capture();
 
   return true;
 
