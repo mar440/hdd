@@ -14,6 +14,8 @@ namespace pt = boost::property_tree;
 
 Data::Data(MPI_Comm* _pcomm): m_domain(_pcomm)
 {
+//  m_comm = *_pcomm;
+//  MPI_Comm_rank(m_comm, &m_mpiRank);
 
 
   m_p_interfaceOperatorB = nullptr;
