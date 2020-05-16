@@ -31,7 +31,7 @@ void HddTime::CloseTime()
 }
 
 
-void HddTime::Capture()
+void HddTime::Capture(std::string msg)
 {
   if (m_open == 0)
   {
@@ -51,7 +51,7 @@ void HddTime::Capture()
     // from beginning
     m_elapsedTime1  = m_end - m_start;
 
-    std::cout << "  " << m_open << " - " << m_name << " -- ";
+    std::cout << "  " << m_open << " " << msg << " - " << m_name << " -- ";
     std::cout << std::fixed << std::setprecision(2) << 
        m_elapsedTime.count() << " s  // " <<
        m_elapsedTime1.count() << " s\n";
