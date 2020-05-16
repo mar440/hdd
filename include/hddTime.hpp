@@ -13,7 +13,7 @@ class HddTime
     HddTime(std::string);
     ~HddTime();
     void CloseTime();
-    void Capture();
+    void Capture(std::string = "");
   private:
     std::chrono::steady_clock::time_point m_start;
     std::chrono::steady_clock::time_point m_restart;
