@@ -1,7 +1,7 @@
 {
   "solver":
   {
-    "preconditioner" : "Lumped",
+    "preconditioner" : "Dirichlet",
     "stopingCriteria" : 1e-7,
     "maxNumbIter" : 400
   },
