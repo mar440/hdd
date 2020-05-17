@@ -6,7 +6,7 @@ source srclibs
 
 echo "number of args:  $#"
 if (( $# < 1 )); then
-    echo "add number of mpi as cmd argument"
+    echo "add number of mpi as an cmd argument"
 else
   orig_path=$(pwd)
 
