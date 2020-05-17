@@ -2,7 +2,8 @@ cmake_minimum_required(VERSION 3.0)
 
 project(hdd)
 
-add_compile_definitions(DBG=0 DMP_INPUTS=2)
+add_compile_definitions(DBG=0)
+#add_compile_definitions(DMP_INPUTS)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/CMake/") 
 file(GLOB sources 
@@ -18,7 +19,6 @@ endif()
 #################
 ## MKL ##########
 #################
-##
 find_package(MKL REQUIRED ) 
 find_package(Threads)
 
